@@ -10,7 +10,7 @@ SECTION .text
 _main:
     ;get and save current modes
     mov ax, 0F00h
-	int 10h
+	int 0x10
 	mov [_old_mode], al
 	mov [_old_page], bh
 
@@ -53,22 +53,62 @@ _main:
         cmp al, 4 ; -,/,m,p,h
         jle __help
 
+;=============================================
+;=============================================
+;=============================================
+;=============================================
+
     ;do something useful
     _useful:
 
 ;jmp _sysexit
+
+	;copy prev page?
+	;logic:
+	; -c -> clear after work (skip copying)
+	; -no key -> restore after work
+	mov bl,[_workmode]
+	and bl, 0b00000001 ;mask
+	cmp bl, byte [_workmode_clear]
+	je _nocopy
+		;copy all stuff (by default)
+		mov ah, byte [_old_mode]
+		mov al, byte [_old_page]
+		call _mem_calc
+		;dx - mem start
+		;bx - page size (bytes)
+		mov ax, dx
+		;call dump_word
+		mov ax, bx
+		;call dump_word
+
+		mov ax, dx
+		mov cx, bx
+		mov bx, ds
+
+		mov si, 0x0
+		mov di, _page_dump
+
+		;AX:SI = src
+		;BX:DI = dst
+		;CX = counter (words!)
+		call _mem_copy
+
+	_nocopy:
+		;do nothing
 
     ;set mode
     xor ax, ax
     mov al, byte [_mode]
     cmp al, 1 	; 0,1 -> 40x25
 	jg _wide
-	mov [_start], word 0x0403 ; ->3, v4
+		;narrow mode (40x25)
+		mov [_start], word 0x0403 ; ->3, v4
 	_wide:
-	int 10h
+	int 0x10 ;set mode
 	mov al, byte [_page]
 	mov ah, 0x05
-	int 10h
+	int 0x10 ;set page
 
 	;set blink/intensity
 	mov ax, 0x1003 ;Set Pallette Registers service
@@ -77,92 +117,132 @@ _main:
 	shr bl, 1 ;bit #1 to #0
 	;0 - intensify
 	;1 - blinking
-	int 0x10
+	int 0x10 ;set pallette reg
+
+	;memory works
+	mov ah, byte [_mode]
+	mov al, byte [_page]
+	call _mem_calc
+	;dx - start
+	;bx - page size in words
+	mov [_mem_start], dx
 
 
-    ;set cursor pos
-    mov ah, 0x02
-    mov bh, byte [_page]
-    mov dx, word [_start]
-    int 0x10
+    
 
-    mov cx, 0x01
-    mov bh, 0x20
-    mov bl, 0x02
-    call _cur_put
-    call _cur_move
-    ;call _cur_newline
+    ;get actual mode/page
+    mov ax, 0F00h
+	int 0x10 ;get vmode
+	mov [_mode], al
+	mov [_page], bh
 
-
-    xor bx, bx ;reset code and attrs
-    mov bl, 0xFF
-    mov cx, 0x10
-    ;;;;;;;;drawing
-    _main_loop:
-    	_str_loop:
-    		call _attr_mod
-    		call _cur_put
-    		call _cur_move
-    		
-    		inc bh ;next code
-    		test bh, 0x0F ; %16
-    		jz _last
-
-    		call _cur_move
-    		jmp _str_loop
-
-    	_last:
-    		call _cur_newline
-    		loop _main_loop
 
     ;print diagnostics
-    mov bl, [red]
-	or bl, [blue]
-	or bl, [green]
-	mov dx, word [_start]
-	dec dh
-	inc dl
-	mov bh, byte [_mode_msg_length]
-	mov cx, word _mode_msg
-	call _cur_str_put
+    ; <TODO>
+    mov al, byte [_mode]
+    call dump_byte
+    mov al, byte [_page]
+    call dump_byte
 
-	or bl, [hicolor]
-	mov bh, byte [_mode]
-	add bh, 0x30
-	call _cur_put
-
-	xor bl, [hicolor]
-	mov dx, word [_start]
-	add dh, 16
-	inc dl
-	mov bh, byte [_page_msg_length]
-	mov cx, word _page_msg
-	call _cur_str_put
-
-	or bl, [hicolor]
-	mov bh, byte [_page]
-	add bh, 0x30
-	call _cur_put
-    
-    ;hide cursor
-    mov dh, 24d
-    call _cur_newline
-
-    ;;;;;;;;over
+;______________________________________________
+;______________________________________________
 
     xor ax, ax
-    int 0x16
+    int 0x16 ;wait keypress
+;______________________________________________
+;______________________________________________
     ;restore original video modes
     xor ax, ax
     mov al, byte [_old_mode]
-	int 10h
+	int 0x10 ;set mode
 	mov al, byte [_old_page]
 	mov ah, 0x05
-	int 10h
+	int 0x10 ;set page
+
+	;restore original page?
+	;logic:
+	; -c -> clear after work (skip copying)
+	; -no key -> restore after work
+	mov bl,[_workmode]
+	and bl, 0b00000001 ;mask
+	cmp bl, byte [_workmode_clear]
+	je _norestore
+		;restore all stuff (by default)
+		mov ah, byte [_old_mode]
+		mov al, byte [_old_page]
+		call _mem_calc
+		;dx - mem start
+		;bx - page size
+
+		mov ax, ds
+		mov cx, bx
+		mov bx, dx
+
+		mov si, _page_dump
+		mov di, 0x0
+
+		;AX:SI = src
+		;BX:DI = dst
+		;CX = counter
+		call _mem_copy
+		
+	_norestore:
+		;do nothing
 
     jmp _sysexit
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+_mem_calc: ;calculates memory start
+			;AH = mode
+			;AL = page
+			;
+			;out: DX = memory start
+			;out: BX = page size
+	;video memory works
+	mov bx, 0x100 ;pagesize (tmp)
+	cmp ah, 0x01
+	jg _mem_page_wide
+		; narrow:
+		mov bx, 0x0080
+	_mem_page_wide:
+		mov dx, 0xB800
+		cmp byte ah, 0x7
+		jne _mem_mode_continue
+			mov dx, 0xB000
+		_mem_mode_continue:
+			;add pagesize to memory segment start
+			mov cl, al
+		    xor ch, ch
+		    _mem_pages:
+		    add dx, bx
+		    loop _mem_pages
+	shl bx, 4 ;4 - in bytes
+	ret
+
+_mem_copy: ;copy piece of memory
+			;AX:SI = src
+			;BX:DI = dst
+			;CX = counter
+	push ds
+	push es
+
+	push ax
+	pop ds
+	push bx
+	pop es
+
+	cld
+	rep movsb
+
+	pop es
+	pop ds
+	ret
+
+
 _attr_mod:  ;DX = current row:col
 			;BX = current code:attrs
 			;CX = current line
@@ -213,70 +293,6 @@ _attr_mod:  ;DX = current row:col
 	_col_end:
 	pop ax
 	ret
-_cur_put:	;DX = current row:col
-			;BX = current code:attrs
-	push ax
-	push bx
-	push cx
-	mov ah, 0x09
-	mov al, bh
-	mov bh, byte [_page]
-	mov cx, 0x01
-	int 0x10
-	pop cx
-	pop bx
-	pop ax
-	ret
-
-_cur_move: ;DX = current row:col
-	push ax
-	push bx
-	xor ax, ax
-	mov ah, 0x02
-	mov bh, byte [_page]
-	inc dl
-	int 0x10
-	pop bx
-	pop ax
-	ret
-_cur_newline: ;DX = current row:col
-	push ax
-	push bx
-	xor ax, ax
-	mov ah, 0x02
-	mov bh, byte [_page]
-	inc dh
-	sub dl, 31d ;move to begin of line
-	int 0x10
-	pop bx
-	pop ax
-	ret
-_cur_str_put: ;DX = current row:col
-			  ;BX = length:attrs
-			  ;CX = string ptr
-	push ax
-	push bx
-	push cx
-	push es
-	push bp
-
-	push ds
-	pop es 
-	mov bp, cx
-	mov ah, 0x13
-	mov al, 0x01
-	xor cx, cx
-	mov cl, bh
-	mov bh, byte [_page]
-	int 0x10
-
-	pop bp
-	pop es
-	pop cx
-	pop bx
-	pop ax
-	ret
-
 
 __process_arg:
 	push ax
@@ -320,9 +336,9 @@ __process_arg:
 		jmp _process_end
 
 		_set_clear:
-			mov bx, [_workmode]
-			or bx, [_workmode_clear]
-			mov [_workmode], bx
+			mov bl, [_workmode]
+			or bl, [_workmode_clear]
+			mov [_workmode], bl
 		jmp _process_end
 
 		_set_blink:
@@ -395,9 +411,12 @@ SECTION .data
         _help_msg db "Usage: -h(elp) -p(age) -m(ode)",13,10,'$'
         _mode db 3
         _page db 0
+        ;_pagesize dw 0x0100 ;(80*25*2)<<4 = 4096
+        _mem_start dw 0x0
         _cur_arg db 0
         _old_page db 0
         _old_mode db 0
+        _old_mem_start dw 0x0
         _page_msg db 'page: '
         _page_msg_length db $-_page_msg
         _mode_msg db 'mode: '
@@ -460,4 +479,4 @@ SECTION .data
     ;	H - high color
 
 SECTION .bss
-	_page_dump db 
+	_page_dump resb 0d4096 ;max video page size?
