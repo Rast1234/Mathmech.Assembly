@@ -552,7 +552,18 @@ ega_blinking:
 	push dx
 	push ax
 
-	mov dx, 0x03DA
+	;check monochrome
+	mov dl, [_mode]
+	cmp dl, 7
+	jne __color
+		mov dx, 0x3BA ;monochrome port
+		jmp __blink_go
+	__color:
+	mov dx, 0x03DA ;color port
+
+
+	__blink_go:
+
 	in al, dx ;initialize attribute address register
 
 	mov dx, 0x03C0	;AA register
