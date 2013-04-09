@@ -8,7 +8,7 @@ mov bh, 0x0F
 call ega_get
 mov cl, bl
 
-add cx, 1
+add cx, 332
 
 ;mov dx, 0x019A
 mov bh, 0x0E
@@ -19,24 +19,21 @@ mov bl, cl
 call ega_set
 
 
-xor ax, ax
-int 0x16 ;wait keypress
-
 ;hide cursor
-	mov bh, 0x0A ;cursor start register
-	call ega_get
-	or bl, 0b00100000 ;Cursor Disable flag
-	call ega_set
+;	mov bh, 0x0A ;cursor start register
+;	call ega_get
+;	or bl, 0b00100000 ;Cursor Disable flag
+;	call ega_set
 
 
 xor ax, ax
 int 0x16 ;wait keypress
 
 ;restore
-mov bh, 0x0A ;cursor start register
-	call ega_get
-	and bl, 0b11011111 ;Cursor Disable flag
-	call ega_set
+;mov bh, 0x0A ;cursor start register
+;	call ega_get
+;	and bl, 0b11011111 ;Cursor Disable flag
+;	call ega_set
 
 jmp _sysexit
 

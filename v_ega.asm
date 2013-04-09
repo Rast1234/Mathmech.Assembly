@@ -94,6 +94,19 @@ _main:
 		call _mem_copy
 
 		;store cursor position
+		mov bh, 0x0E
+		call ega_get
+		mov ch, bl
+		mov bh, 0x0F
+		call ega_get
+		mov cl, bl
+		mov word [_cursor], cx
+
+		;store cursor position(dos)
+		mov ah, 3
+		mov bh, [_old_page]
+		int 0x10
+		mov [_dos_cursor], dx
 
 
 
@@ -205,7 +218,42 @@ _main:
 
     ;print diagnostics
     ; <TODO>
-    
+    mov di, word [_start]
+    sub di, word [_line_length]
+    mov cl, byte [_mode_msg_length]
+    xor ch, ch
+    mov bx, word _mode_msg
+    mov al, byte [bx]
+    mov ah, 0x02
+    _mode_text:
+    	mov [es:di], word ax
+    	add di, 2
+    	inc bx
+    	mov al, byte [bx]
+    	loop _mode_text
+    add di, 2
+    mov bl, [_mode]
+    ;print digit
+    call print_digit
+
+    mov di, word [_bottom]
+    add di, word [_line_length]
+    mov cl, byte [_page_msg_length]
+    xor ch, ch
+    mov bx, word _page_msg
+    mov al, byte [bx]
+    mov ah, 0x02
+    _page_text:
+    	mov [es:di], word ax
+    	add di, 2
+    	inc bx
+    	mov al, byte [bx]
+    	loop _page_text
+    add di, 2
+    mov bl, [_page]
+    ;print digit
+    call print_digit
+
 
 ;______________________________________________
 ;______________________________________________
@@ -251,6 +299,11 @@ _main:
 		call _mem_copy
 
 		;cursor!
+		mov ah, 2
+		mov bh, [_old_page]
+		mov dx, [_dos_cursor]
+		int 0x10
+
 
 		
 	_norestore:
@@ -260,6 +313,16 @@ _main:
 	mov bh, 0x0A ;cursor start register
 	call ega_get
 	and bl, 0b11011111 ;Cursor Disable flag
+	call ega_set
+	
+
+	;restore cursor position
+	mov cx, [_cursor]
+	mov bh, 0x0E
+	mov bl, ch
+	call ega_set
+	mov bh, 0x0F
+	mov bl, cl
 	call ega_set
 
     jmp _sysexit
@@ -375,6 +438,13 @@ _line:
 	mov [es:di], word bx
 	add di,2
 	loop _line_loop
+	ret
+
+print_digit:
+			;BL = digit
+	mov bh, 0x01
+	add bl, 0x30
+	mov [es:di], bl
 	ret
 
 __process_arg:
@@ -551,22 +621,16 @@ dump_byte:; print AL
 
 
 _sysexit:
-    mov ax, 0x4de0
+    mov ax, 0x4c00
     int 0x21
     ret
-
-
-
-exit:
-	mov ax, 4c00h
-	int 21h
-	ret
 
 
 SECTION .data
         _state db 0
         symbols db '0123456789ABCDEF'
-        _help_msg db "Usage: -h(elp) -p(age) -m(ode)",13,10,'$'
+        _help_msg db "Usage: -h(elp) -p(age)X -m(ode)Y -b(link) -c(learscreen)",13,10
+					db "Example: v.com -p3 -m2 -b",13,10,'$'
         _mode db 3
         _page db 0
         _mem_start dw 0x0
@@ -577,6 +641,7 @@ SECTION .data
         _old_mode db 0
         _old_mem_start dw 0x0
         _cursor dw 0
+        _dos_cursor dw 0
         _page_msg db 'page: '
         _page_msg_length db $-_page_msg
         _mode_msg db 'mode: '
