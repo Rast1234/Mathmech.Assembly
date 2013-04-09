@@ -61,7 +61,6 @@ _main:
     ;do something useful
     _useful:
 
-;jmp _sysexit
 
 	;copy prev page?
 	;logic:
@@ -94,30 +93,54 @@ _main:
 		;CX = counter (words!)
 		call _mem_copy
 
+		;store cursor position
+
+
+
 	_nocopy:
 		;do nothing
 
-    ;set mode
+    ;set mode=================================
     xor ax, ax
     mov al, byte [_mode]
     cmp al, 1 	; 0,1 -> 40x25
 	jg _wide
 		;narrow mode (40x25)
-		mov [_start], word 0x0403 ; ->3, v4
+		mov word [_start], (3+40*3)*2
+		mov word [_newline], (4+4)*2
+		mov word [_bottom],  (3+40*(3+17))*2
+		mov word [_line_length], 0d40*2
 	_wide:
+	;or al, 0b10000000 ;high bit up
 	int 0x10 ;set mode
 	mov al, byte [_page]
 	mov ah, 0x05
 	int 0x10 ;set page
 
+	;hide cursor
+	mov bh, 0x0A ;cursor start register
+	call ega_get
+	or bl, 0b00100000 ;Cursor Disable flag
+	call ega_set
+
+	;get actual mode/page
+    mov ax, 0F00h
+	int 0x10 ;get vmode
+	mov [_mode], al
+	mov [_page], bh
+
 	;set blink/intensity
-	mov ax, 0x1003 ;Set Pallette Registers service
+	;mov ax, 0x1003 ;Set Pallette Registers service
 	mov bl,[_workmode]
 	and bl, 0b00000010 ;mask
 	shr bl, 1 ;bit #1 to #0
 	;0 - intensify
 	;1 - blinking
-	int 0x10 ;set pallette reg
+	;int 0x10 ;set pallette reg
+	call ega_blinking
+ 
+
+
 
 	;memory works
 	mov ah, byte [_mode]
@@ -126,23 +149,63 @@ _main:
 	;dx - start
 	;bx - page size in words
 	mov [_mem_start], dx
+	push dx
+	pop es ;video memory in ES
+
+	;go
+
+	;corners
+	mov di, [_start]
+	mov word [es:di], 0x02C9 ;left top
+	add di, 2 ;after corner
+	mov bx, 0x02CD ;horizontal double line
+	call _line
+	mov word [es:di], 0x02BB ;right top
+	
+	mov di, [_bottom]
+	mov word [es:di], 0x02C8 ;left bottom
+	add di, 2 ;after corner
+	mov bx, 0x02CD ;horizontal double line
+	call _line
+	mov word [es:di], 0x02BC ;right bottom
+
+	mov di, [_start]
+	add di, word [_line_length]
+	;we're under left top corner
+
+	xor bx, bx ;reset code and attrs
+    mov bh, 0xFF ;color
+    mov cx, 0x10
+    ;;;;;;;;drawing
+    _main_loop:
+    	mov word [es:di], 0x02BA ;vertical double border
+    	add di, 2
+    	_str_loop:
+    		call _attr_mod
+    		mov [es:di], word bx
+    		add di, 2
+    		
+    		inc bl ;next code
+    		test bl, 0x0F ; %16
+    		jz _last
+
+    		mov word [es:di], 0x0020 ;space
+    		add di, 2
+    		jmp _str_loop
+
+    	_last:
+    		
+    		mov word [es:di], 0x02BA ;vertical double border
+    		add di, [_newline]
+    		loop _main_loop
 
 
     
 
-    ;get actual mode/page
-    mov ax, 0F00h
-	int 0x10 ;get vmode
-	mov [_mode], al
-	mov [_page], bh
-
 
     ;print diagnostics
     ; <TODO>
-    mov al, byte [_mode]
-    call dump_byte
-    mov al, byte [_page]
-    call dump_byte
+    
 
 ;______________________________________________
 ;______________________________________________
@@ -154,6 +217,7 @@ _main:
     ;restore original video modes
     xor ax, ax
     mov al, byte [_old_mode]
+    ;or al, 0b10000000 ;high bit up
 	int 0x10 ;set mode
 	mov al, byte [_old_page]
 	mov ah, 0x05
@@ -185,9 +249,18 @@ _main:
 		;BX:DI = dst
 		;CX = counter
 		call _mem_copy
+
+		;cursor!
+
 		
 	_norestore:
 		;do nothing
+
+	;show cursor
+	mov bh, 0x0A ;cursor start register
+	call ega_get
+	and bl, 0b11011111 ;Cursor Disable flag
+	call ega_set
 
     jmp _sysexit
 
@@ -243,9 +316,10 @@ _mem_copy: ;copy piece of memory
 	ret
 
 
-_attr_mod:  ;DX = current row:col
-			;BX = current code:attrs
+_attr_mod:  ;mutate colors
+			;BX = current attr:code
 			;CX = current line
+	xchg bh, bl ;patch
 	;color behavior
 	push ax
 	mov ax, 0x10 ;because cx steps 15..0
@@ -260,7 +334,7 @@ _attr_mod:  ;DX = current row:col
 	cmp ax, 0x0F
 	je _col_b
 
-	jmp _col_sequence ;defaule
+	jmp _col_sequence ;default
 
 
 	_col_sequence:
@@ -291,7 +365,16 @@ _attr_mod:  ;DX = current row:col
 
 
 	_col_end:
+	xchg bh, bl ;patch
 	pop ax
+	ret
+
+_line:
+	mov cx, 0x20-1
+	_line_loop:
+	mov [es:di], word bx
+	add di,2
+	loop _line_loop
 	ret
 
 __process_arg:
@@ -351,6 +434,87 @@ __process_arg:
 	pop ax
 	ret
 
+ega_set: ;set register value
+					;BX = register:value
+	push dx
+	push ax
+
+	;CRT Controller (CRTC) registers
+	;ports 0x3B4/0x3B5 - monochrome display
+	;ports 0x3D4/0x3D5 - color display
+
+	; 0x3?4 : CRTC Address Register
+	; 0x3?5 : CRTC Data Register
+
+	mov dx, 0x03D4	;we want to address...
+	mov al, bh
+	out dx, al
+
+	mov dx, 0x03D5	;write to it..
+	mov al, bl
+	out dx, al
+
+	pop ax
+	pop dx
+	ret
+
+ega_get: ;read register value
+					;BH = register
+					;out : BL = value
+	push dx
+	push ax
+
+	mov dx, 0x03D4	;we want to address...
+	mov al, bh
+	out dx, al
+
+	mov dx, 0x03D5	;write to it..
+	in al, dx
+	mov bl, al
+
+	pop ax
+	pop dx
+	
+	ret
+
+ega_blinking:
+				;BL=1 - blink, 0 - no blink
+	push dx
+	push ax
+
+	mov dx, 0x03DA
+	in al, dx ;initialize attribute address register
+
+	mov dx, 0x03C0	;AA register
+	mov al, 0x10 ;mode control register
+	out dx, al
+
+	mov dx, 0x03C0	;Mode Control Register now
+	in al, dx
+	shl bl, 3
+	; 0bxxxx!xyz
+	; 0b....@...
+	and al, 0b11110111 ;kill it
+	or al, bl ;1 if 1, 0 if 0
+
+
+	mov dx, 0x03C0	;Mode Control Register now
+	out dx, al
+
+	pop ax
+	pop dx
+
+	ret
+
+__help:
+	mov al, [_state]
+	mov al, byte [_cur_arg]
+    mov ah, 0x9
+    mov dx, _help_msg
+    int 0x21
+    jmp _sysexit
+
+
 dump_word:	; print AX
 	xchg al, ah
 	call dump_byte
@@ -384,13 +548,7 @@ dump_byte:; print AL
 	pop bx
 	ret
 
-__help:
-	mov al, [_state]
-	mov al, byte [_cur_arg]
-    mov ah, 0x9
-    mov dx, _help_msg
-    int 0x21
-    jmp _sysexit
+
 
 _sysexit:
     mov ax, 0x4de0
@@ -411,12 +569,14 @@ SECTION .data
         _help_msg db "Usage: -h(elp) -p(age) -m(ode)",13,10,'$'
         _mode db 3
         _page db 0
-        ;_pagesize dw 0x0100 ;(80*25*2)<<4 = 4096
         _mem_start dw 0x0
+        _newline dw 0d24*2+0d24*2
+        _line_length dw 0d80*2
         _cur_arg db 0
         _old_page db 0
         _old_mode db 0
         _old_mem_start dw 0x0
+        _cursor dw 0
         _page_msg db 'page: '
         _page_msg_length db $-_page_msg
         _mode_msg db 'mode: '
@@ -428,7 +588,8 @@ SECTION .data
         _workmode_blink db 0b00000010 ;blink
         
         ;for 80x25
-        _start dw 0x0418 ; ->24, v4
+        _start dw (0d23+0d80*3)*2 ; -> 23,  v 3, words
+        _bottom dw (0d23+0d80*(3+17))*2 ; -> 23,  v 20, words
 
         ;automata
 	_state_count db 0d10
