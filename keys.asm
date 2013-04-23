@@ -1,7 +1,5 @@
 ;displays keypress info:
 ;
-;<SCANCODE> <ASCII code> <Glyph>
-;
 ;exit on ESC
 ;uses int 0x16
 ;handles key combinations
@@ -13,39 +11,23 @@ _main:
 	mov ah, 0x09
 	mov dx, statrline
 	int 0x21
-	mov cx, 23
+	mov di, 21
 	_infinite:
 
-		;mov ah, 0x11 ;extended keyb status
 		mov ah, 0x10 ;keyb read
 		int 0x16
-		;ZF = 0 if character available
-		;jz _infinite ;if 1, loop
-			;okay, keyboard stuff available in AX
 			;AL = ascii / AH = SCANCODE
 			mov bx, ax ;save it
 			mov ah, 0x12 ;extended shift status
 			int 0x16
 			;AL = Insert-Caps-NumLk-ScrLck-Alt-Ctrl-Lshift-Rshift
 			;AH = SysRq-CapsLk-NumLk-ScrLk-RAlt-RCtrl-LAlt-LCtrl
-			;call dump_word
 
-			cmp cx, 0
-			je _cx_0
-			jne _cx_ok
-
-			_cx_0:
-				mov ah, 0x09
-				mov dx, statrline
-				int 0x21
-				mov cx, 23
-				jmp _work
-			_cx_ok:
-
-				dec cx
-				jmp _work
-			_work:
-
+			call if_header
+			
+		;call dump_word ; uncomment this line to
+						; dump AX (extended shift status)
+						; without parsing into 'table'
 			
 			call print_stuff
 			call print_shifts
@@ -62,18 +44,33 @@ _main:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;FUNCTIONS;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-__help:
-    mov ah, 0x9
-    mov dx, symbols
-    int 0x21
-    jmp _sysexit
+if_header:
+	push ax
+	push bx
+	cmp di, 0
+	je _cx_0
+	jne _cx_ok
+	_cx_0:
+		mov ah, 0x09
+		mov dx, statrline
+		int 0x21
+		mov di, 21
+		jmp _if_end
+	_cx_ok:
+		dec di
+		jmp _if_end
+	_if_end:
+	pop bx
+	pop ax
+	ret
 
 print_stuff: ; prnit Scancode, ASCII code and symbol
 		; BX = to print scancode:ascii
 	push ax
+	push bx
 	push dx
 	mov ah, 0x09
 	mov dx, scancode
@@ -86,48 +83,28 @@ print_stuff: ; prnit Scancode, ASCII code and symbol
 	mov al, bl
 	call dump_byte
 	mov ah, 0x09
-	;#############################################
-		;filter non-printing characters
-		cmp al, 0
-		je _replace
-		cmp al, 07
-		je _replace
-		cmp al, 08
-		je _replace
-		cmp al, 09
-		je _replace
-		cmp al, 10
-		je _replace
-		cmp al, 13
-		je _replace
-		cmp al, 0x1B ;ESCape
-		je _replace
-		jmp _char_ok
-
-		_replace:
-			mov al, 0x20 ;replace with space
-		_char_ok:
 	mov dx, character
 	int 0x21
-	;=============================
+
+	mov ah, 0x03
+	xor bx, bx
+	int 0x10
+	;CH:Cl cursor pos 
+
+	mov ah, 0x09
+	mov bx, 0x2
+	mov cx, 1
+	int 0x10
+
 	mov ah, 0x02
-	mov dl, al
-	int 0x21
-	; mov ah, 0x03
-	; xor bh, bh
-	; int 0x10
-		;;ch:cl dh:dl cursor
-	; mov ah, 0x09
-	; mov cx, 1
-	; int 0x10
-	; inc dl
-	; mov ah, 0x02
-	; int 0x10
+	inc dx
+	int 0x10
 	;=============================
 	mov ah, 0x09
 	mov dx, character_after
 	int 0x21
 	pop dx
+	pop bx
 	pop ax
 	ret
 
