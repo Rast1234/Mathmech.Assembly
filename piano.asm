@@ -710,8 +710,9 @@ SECTION .data
 
 		delay dw 0x0018 ;1 second?
 
-		m_notes  db  
-		m_delays dw  
+		;	timing:	|========= 1+ second = 19 ======|
+		m_notes  db  103,0, 103,0,103,0,103,0, 105,0, 105,0
+		m_delays dw  3, 4,  2,1,  2,1,  2,1,     4,5, 4,5
 
 		m_count dw m_delays - m_notes
 
