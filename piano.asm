@@ -72,6 +72,8 @@ _infinite:
 
 	call buf_pop ;reads into AL
 	call dump_byte ;prints AL
+	;call play_music
+	;ret
 	call magic
 	call print_newline
 	cmp al, [ExitScanCode] ;esc?
@@ -711,8 +713,14 @@ SECTION .data
 		delay dw 0x0018 ;1 second?
 
 		;	timing:	|========= 1+ second = 19 ======|
-		m_notes  db  103,0, 103,0,103,0,103,0, 105,0, 105,0
-		m_delays dw  3, 4,  2,1,  2,1,  2,1,     4,5, 4,5
+		m_notes  db  103,0, 103,0,103,0,103,0, 105,0, 105,0, 107,0, 103,0, 105,0 ;tram ta-da-da-da-ta tam-ta-tam
+		 		 db  103,0, 103,0,103,0,103,0, 105,0, 105,0, 107,0, 103,0, 105,0 ;tram ta-da-da-da-ta tam-ta-tam
+		 		 db  5,101,0, 103,101,0, 12,11,0, 8,7,0,    3,13,0,  101,13,0
+
+		m_delays dw  3, 5,  1,2,  1,2,  1,2,     4,6, 4,5,   4,5,   4,6,   10,8
+				 dw  3, 5,  1,2,  1,2,  1,2,     4,6, 4,5,   4,5,   4,6,   10,8
+				 dw  2,4,3,    2,4,3,    2,4,3,   2,7,4,    2,4,3,   2,4,3
+
 
 		m_count dw m_delays - m_notes
 
