@@ -385,10 +385,16 @@ move_circle:
 			;compare Y for now
 			mov ax, [frame_sz+2]
 			mov bx, dx
-			call _abs
+			call _abs ; distance in AX
 			cmp ax, si
 			ja two
-			;or it's better than distance in SI
+			;or it's better than distance in SI?
+			;check if it's in actual range
+			cmp cx, word [frame_sz]
+			jb two
+			cmp cx, word [frame_sz+4]
+			ja two
+			;everthing ok
 			mov si, ax
 			mov di, 1
 	two:	; 2) line X1,Y2--X2,Y2 (hrz)
@@ -397,7 +403,13 @@ move_circle:
 			call _abs
 			cmp ax, si
 			ja three
-			;or it's better than distance in SI
+			;or it's better than distance in SI?
+			;check if it's in actual range
+			cmp cx, word [frame_sz]
+			jb three
+			cmp cx, word [frame_sz+4]
+			ja three
+			;everthing ok
 			mov si, ax
 			mov di, 2
 	three:	; 3) line X1,Y1--X1,Y2 (vrt)
@@ -407,6 +419,12 @@ move_circle:
 			cmp ax, si
 			ja four
 			;or it's better than distance in SI
+			;check if it's in actual range
+			cmp dx, word [frame_sz+2]
+			jb four
+			cmp dx, word [frame_sz+6]
+			ja four
+			;everthing ok
 			mov si, ax
 			mov di, 3
 	four:	; 4) line X2,Y1--X2,Y2 (vrt)
@@ -416,9 +434,16 @@ move_circle:
 			cmp ax, si
 			ja enough
 			;or it's better than distance in SI
+			;check if it's in actual range
+			cmp dx, word [frame_sz+2]
+			jb enough
+			cmp dx, word [frame_sz+6]
+			ja enough
+			;everthing ok
 			mov si, ax
 			mov di, 4
 	enough:
+			; ???
 			cmp di, 1
 			je enough.one
 			cmp di, 2
@@ -427,7 +452,7 @@ move_circle:
 			je enough.three
 			cmp di, 4
 			je enough.four
-			jmp _sysexit ;should never happen
+			jmp enough.end ;should never happen
 		.one:
 			mov ax, [frame_sz+2]
 			mov [ball_pos+2], ax
