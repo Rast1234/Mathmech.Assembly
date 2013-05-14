@@ -339,27 +339,171 @@ mouse_event:
 	push ds
 	push word [cs:data_seg_ref]
 	pop ds ;restore to current
-	mov	ax, 2	; спрятать курсор
-	int	0x33
+	;mov	ax, 2	; спрятать курсор
+	;int	0x33
 
 	;mov	ah,0x0C	; вывести точку
 	;mov	al,0x0A
 	;int	0x10
-	mov bx, word [ball_color]
-	mov [ball_color], word 0x0000
-	call draw_ball
+	;remove old ball anyway
+	; too bad, causes blinking
+	cmp [lock_flag], byte 1
+	je mouse_event.end_noflag
+	mov [lock_flag], byte 1
+
+	cmp ax, 0x0001
+	je mouse_event.move
+	cmp ax, 0x0002
+	je mouse_event.press
+	cmp ax, 0x0004
+	je mouse_event.release
+
+.move:
+	and bx, 0x01 ;mask to ignore right button
+	cmp bx, 0x01
+	je mouse_event.drag
+	jne mouse_event.just_move
+.drag:
+	cmp byte [fail_flag], 1
+	je mouse_event.end
+	call in_frame
+	cmp ax, 1
+	jne mouse_event.end
+		;move 'em all!
+		cmp word [coordinates], 0 ;critical
+		je _sysexit
+		cmp word [coordinates+2], 0 ;error
+		je _sysexit
+
+		;calculate diff between coord and current
+		;restore from backups
+		;add'em to frame_sz
+		;check if they're in 640*480
+		;draw
+
+		push word [frame_color]
+		mov [frame_color], word 0
+		call draw_frame
+		pop word [frame_color]
+		push word [ball_color]
+		mov [ball_color], word 0
+		call draw_ball
+		pop word [ball_color]
+
+		sub cx, word [coordinates]
+		sub dx, word [coordinates+2]
+		push cx
+		mov cx, 4
+		mov si, bak_frame_sz
+		mov di, frame_sz
+		.restore1:
+			mov ax, [si]
+			mov [di], ax
+			add di, 2
+			add si, 2
+			loop mouse_event.restore1
+		mov cx, 2
+		mov si, bak_ball_pos
+		mov di, ball_pos
+		.restore2:
+			mov ax, [si]
+			mov [di], ax
+			add di, 2
+			add si, 2
+			loop mouse_event.restore2
+		pop cx
+		add [frame_sz], cx
+		add [frame_sz+2], dx
+		add [frame_sz+4], cx
+		add [frame_sz+6], dx
+		add [ball_pos], cx
+		add [ball_pos+2], dx
+
+		mov ax, [ball_radius]
+		cmp word [frame_sz], ax
+		jb mouse_event._drag_fail
+		mov ax, 640
+		sub ax, word [ball_radius]
+		cmp word [frame_sz+4], ax
+		ja mouse_event._drag_fail
+		mov ax, [ball_radius]
+		cmp word [frame_sz+2], ax
+		jb mouse_event._drag_fail
+		mov ax, 480
+		sub ax, [ball_radius]
+		cmp word [frame_sz+6], ax
+		ja mouse_event._drag_fail
+
+
+		call draw_frame
+		call draw_ball
+	jmp mouse_event._drag_fail
+	jmp mouse_event.end
+._drag_fail:
+	mov byte [fail_flag], 1
+	mov cx, 4
+	mov si, bak_frame_sz
+	mov di, frame_sz
+	.reset1:
+		mov ax, [si]
+		mov [di], ax
+		add di, 2
+		add si, 2
+		loop mouse_event.reset1
+	mov cx, 2
+	mov si, bak_ball_pos
+	mov di, ball_pos
+	.reset2:
+		mov ax, [si]
+		mov [di], ax
+		add di, 2
+		add si, 2
+		loop mouse_event.reset2
+
 	call draw_frame
-	mov [ball_color], bx
+	call draw_ball
+	jmp mouse_event.end
+.just_move:
+	push word [ball_color]
+	mov [ball_color], word 0
+	call draw_ball
+	pop word [ball_color]
+	call draw_frame 
 	call move_circle
 	call draw_ball
-	cmp bx, 0x1
-	jne _not_pressed
-		;left button pressed
-		
-	_not_pressed:
-
-	mov	ax, 1	; показать курсор
-	int	0x33
+	jmp mouse_event.end
+.press:
+	mov [coordinates], cx
+	mov [coordinates+2], dx
+	mov cx, 4
+	mov si, frame_sz
+	mov di, bak_frame_sz
+	.backup1:
+		mov ax, [si]
+		mov [di], ax
+		add di, 2
+		add si, 2
+		loop mouse_event.backup1
+	mov cx, 2
+	mov si, ball_pos
+	mov di, bak_ball_pos
+	.backup2:
+		mov ax, [si]
+		mov [di], ax
+		add di, 2
+		add si, 2
+		loop mouse_event.backup2
+	jmp mouse_event.end
+.release:
+	mov byte [fail_flag], 0
+	mov [coordinates], word 0
+	mov [coordinates+2], word 0
+	jmp mouse_event.end
+.end:
+	mov [lock_flag], byte 0
+.end_noflag:
+	;mov	ax, 1	; показать курсор
+	;int	0x33
 	pop ds
 	pop dx
 	pop cx
@@ -520,6 +664,22 @@ _abs:
 .ok:	sub ax, bx
 	ret
 
+in_frame:
+	;	CX:	hrz pos
+	;	DX: vrt pos
+	;out: AX: 1 if inside, 0 if outside
+	mov ax, 0
+	cmp cx, word [frame_sz]
+	jb in_frame.end
+	cmp cx, word [frame_sz+4]
+	ja in_frame.end
+	cmp dx, word [frame_sz+2]
+	jb in_frame.end
+	cmp dx, word [frame_sz+6]
+	ja in_frame.end
+	mov ax, 1
+	.end:
+	ret
 save_mode:
 	mov ax, 0x0F00
 	int 0x10
@@ -627,9 +787,13 @@ SECTION .data
 		 			dw 0x0258, 0x0190 ;word x2, word y2	= 600*400
 		frame_color db 12
 		ball_pos dw 0x0064, 0x0032
-		ball_color db 10, 0x00
-		ball_radius db 3, 0x00
-		lol dw 0
+		ball_color db 10, 0x0
+		ball_radius db 3, 0x0
+		coordinates dw 0x0, 0x0
+		bak_frame_sz dw 0,0,0,0
+		bak_ball_pos dw 0,0
+		fail_flag db 0
+		lock_flag db 0
 SECTION .bss
 		_backup resd 1
 		_videomode resw 1
