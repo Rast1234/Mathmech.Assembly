@@ -320,7 +320,7 @@ init_mouse:
 	push cs
 	pop es
 	mov dx, mouse_event
-	mov cx, 0b00000111
+	mov cx, 0b00011111
 	int 0x33
 
 	ret
@@ -357,6 +357,10 @@ mouse_event:
 	je mouse_event.press
 	cmp ax, 0x0004
 	je mouse_event.release
+	cmp ax, 0x0008
+	je mouse_event.rpress
+	cmp ax, 0x0010
+	je mouse_event.rrelease
 
 .move:
 	and bx, 0x01 ;mask to ignore right button
@@ -364,106 +368,98 @@ mouse_event:
 	je mouse_event.drag
 	jne mouse_event.just_move
 .drag:
-	cmp byte [fail_flag], 1
-	je mouse_event.end
 	call in_frame
 	cmp ax, 1
-	jne mouse_event.end
-		;move 'em all!
+	je mouse_event.drag_ok
+	call in_circle
+	cmp ax, 1
+	je mouse_event.drag_ok
+	jmp mouse_event.end
+		.drag_ok:
+		;move 'em all!	
+
 		cmp word [coordinates], 0 ;critical
-		je _sysexit
+		je mouse_event.drag_fail
 		cmp word [coordinates+2], 0 ;error
-		je _sysexit
+		je mouse_event.drag_fail
 
-		;calculate diff between coord and current
-		;restore from backups
-		;add'em to frame_sz
-		;check if they're in 640*480
-		;draw
+		;offset we moved to
+		sub cx, word [coordinates]
+		sub dx, word [coordinates+2]
 
+		mov ax, [frame_sz] ;x1
+		add ax, cx
+		cmp ax, word [ball_radius]
+		jl mouse_event.drag_fail
+		mov [_buffer], ax 	; accumulate changes
+
+		mov ax, [frame_sz+2] ;y1
+		add ax, dx
+		cmp ax, word [ball_radius]
+		jl mouse_event.drag_fail
+		mov [_buffer+2], ax
+
+		mov ax, [frame_sz+4] ;x2
+		add ax, cx
+		mov bx, 640
+		sub bx, word [ball_radius]
+		cmp ax, bx
+		jg mouse_event.drag_fail
+		mov [_buffer+4], ax
+
+		mov ax, [frame_sz+6] ;y2
+		add ax, dx
+		mov bx, 480
+		sub bx, word [ball_radius]
+		cmp ax, bx
+		jg mouse_event.drag_fail
+		mov [_buffer+6], ax
+
+		mov ax, [ball_pos] ;x0
+		add ax, cx
+		mov [_buffer+8], ax
+		mov ax, [ball_pos+2] ;y0
+		add ax, dx
+		mov [_buffer+10], ax
+
+
+		add [coordinates], cx
+		add [coordinates+2], dx
+
+		mov ax, 2
+		int 0x33
 		push word [frame_color]
-		mov [frame_color], word 0
+		mov [frame_color], word 0x0
 		call draw_frame
 		pop word [frame_color]
 		push word [ball_color]
-		mov [ball_color], word 0
+		mov [ball_color], word 0x0
 		call draw_ball
-		pop word [ball_color]
+		pop word [ball_color]	
 
-		sub cx, word [coordinates]
-		sub dx, word [coordinates+2]
 		push cx
-		mov cx, 4
-		mov si, bak_frame_sz
+		mov cx, 6
+		mov si, _buffer
 		mov di, frame_sz
-		.restore1:
+		._replace:
 			mov ax, [si]
 			mov [di], ax
-			add di, 2
 			add si, 2
-			loop mouse_event.restore1
-		mov cx, 2
-		mov si, bak_ball_pos
-		mov di, ball_pos
-		.restore2:
-			mov ax, [si]
-			mov [di], ax
 			add di, 2
-			add si, 2
-			loop mouse_event.restore2
+			loop mouse_event._replace
 		pop cx
-		add [frame_sz], cx
-		add [frame_sz+2], dx
-		add [frame_sz+4], cx
-		add [frame_sz+6], dx
-		add [ball_pos], cx
-		add [ball_pos+2], dx
-
-		mov ax, [ball_radius]
-		cmp word [frame_sz], ax
-		jb mouse_event._drag_fail
-		mov ax, 640
-		sub ax, word [ball_radius]
-		cmp word [frame_sz+4], ax
-		ja mouse_event._drag_fail
-		mov ax, [ball_radius]
-		cmp word [frame_sz+2], ax
-		jb mouse_event._drag_fail
-		mov ax, 480
-		sub ax, [ball_radius]
-		cmp word [frame_sz+6], ax
-		ja mouse_event._drag_fail
-
-
 		call draw_frame
 		call draw_ball
-	jmp mouse_event._drag_fail
+		mov ax, 1
+		int 0x33
 	jmp mouse_event.end
-._drag_fail:
-	mov byte [fail_flag], 1
-	mov cx, 4
-	mov si, bak_frame_sz
-	mov di, frame_sz
-	.reset1:
-		mov ax, [si]
-		mov [di], ax
-		add di, 2
-		add si, 2
-		loop mouse_event.reset1
-	mov cx, 2
-	mov si, bak_ball_pos
-	mov di, ball_pos
-	.reset2:
-		mov ax, [si]
-		mov [di], ax
-		add di, 2
-		add si, 2
-		loop mouse_event.reset2
-
-	call draw_frame
-	call draw_ball
+.drag_fail:
+	add [coordinates], cx
+	add [coordinates+2], dx	
 	jmp mouse_event.end
 .just_move:
+	mov ax, 2
+	int 0x33
 	push word [ball_color]
 	mov [ball_color], word 0
 	call draw_ball
@@ -471,33 +467,56 @@ mouse_event:
 	call draw_frame 
 	call move_circle
 	call draw_ball
+	mov ax, 1
+	int 0x33
 	jmp mouse_event.end
 .press:
 	mov [coordinates], cx
 	mov [coordinates+2], dx
-	mov cx, 4
-	mov si, frame_sz
-	mov di, bak_frame_sz
-	.backup1:
-		mov ax, [si]
-		mov [di], ax
-		add di, 2
-		add si, 2
-		loop mouse_event.backup1
-	mov cx, 2
-	mov si, ball_pos
-	mov di, bak_ball_pos
-	.backup2:
-		mov ax, [si]
-		mov [di], ax
-		add di, 2
-		add si, 2
-		loop mouse_event.backup2
 	jmp mouse_event.end
 .release:
-	mov byte [fail_flag], 0
 	mov [coordinates], word 0
 	mov [coordinates+2], word 0
+	jmp mouse_event.end
+.rpress:
+	jmp mouse_event.end
+.rrelease:
+	call in_circle
+	cmp ax, word 1
+	je .recolor_circle
+	call in_frame
+	cmp ax, word 1
+	je .recolor_frame
+	jmp mouse_event.end
+.recolor_frame:
+	mov bx, frame_color
+	mov dx, [ball_color]
+	call recolor
+	mov ax, 2
+	int 0x33
+	push word [ball_color]
+	mov [ball_color], word 0
+	call draw_ball
+	pop word [ball_color]
+	call draw_frame 
+	call draw_ball
+	mov ax, 1
+	int 0x33
+	jmp mouse_event.end
+.recolor_circle:
+	mov bx, ball_color
+	mov dx, [frame_color]
+	call recolor
+	mov ax, 2
+	int 0x33
+	push word [ball_color]
+	mov [ball_color], word 0
+	call draw_ball
+	pop word [ball_color]
+	call draw_frame 
+	call draw_ball
+	mov ax, 1
+	int 0x33
 	jmp mouse_event.end
 .end:
 	mov [lock_flag], byte 0
@@ -510,6 +529,31 @@ mouse_event:
 	pop bx
 	pop ax
 	retf
+
+recolor:
+	;	BX - pointer to color
+	;	DX - color to ignore
+	push ax
+	push bx
+	mov ax, [bx]
+	inc ax
+	cmp ax, 0x10
+	je recolor.reset
+	jne recolor.next
+.reset:
+	mov ax, 1
+.next:
+	cmp ax, dx
+	je recolor.skip
+	jne recolor.ok
+.skip:
+	inc ax
+.ok:
+	mov [bx], ax
+	;call dump_word
+	pop dx
+	pop ax
+	ret
 
 move_circle:
 		; CX = hrz cursor pos
@@ -680,6 +724,32 @@ in_frame:
 	mov ax, 1
 	.end:
 	ret
+
+in_circle:
+	;	out: ax = 1 if cursor inside circle
+	push bx
+	push cx
+	mov	ax, 2	; спрятать курсор
+	int	0x33
+	mov ah, 0x0D ;read pixel under cursor
+	mov bh, 0
+	int 0x10
+	cmp al, byte [ball_color]
+	jne in_circle.fail
+	mov ax, 1
+	jmp in_circle.end
+	.fail:
+	mov ax, 0
+	.end:
+	push ax
+	mov	ax, 1	; показать курсор
+	int	0x33
+	pop ax
+	;call dump_word
+	pop cx
+	pop bx
+	ret
+
 save_mode:
 	mov ax, 0x0F00
 	int 0x10
@@ -783,17 +853,15 @@ SECTION .data
 		newline db 13,10,'$'
 		key db 0
 		ExitScanCode db 0x01 ;escape pressed
+		frame_color db 12, 0x0
 		frame_sz 	dw 0x0064, 0x0032 ;word x1, word y1		= 100* 50
 		 			dw 0x0258, 0x0190 ;word x2, word y2	= 600*400
-		frame_color db 12
 		ball_pos dw 0x0064, 0x0032
 		ball_color db 10, 0x0
-		ball_radius db 3, 0x0
+		ball_radius db 10, 0x0
 		coordinates dw 0x0, 0x0
-		bak_frame_sz dw 0,0,0,0
-		bak_ball_pos dw 0,0
-		fail_flag db 0
 		lock_flag db 0
 SECTION .bss
 		_backup resd 1
 		_videomode resw 1
+		_buffer resw 6
