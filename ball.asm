@@ -137,17 +137,12 @@ draw_ball:
 	mov ax, word [ball_pos] ;X0
 	add ax, [ball_radius]
 	push ax
-	push word [ball_pos+2] ; Y0
-	push word [ball_color]
-	call draw_pixel
-
-
-	mov ax, word [ball_pos] ;X0
+	mov ax, word [ball_pos] ;X1
 	sub ax, [ball_radius]
 	push ax
 	push word [ball_pos+2] ; Y0
 	push word [ball_color]
-	call draw_pixel
+	call draw_line
 
 	;while (x < y)
 	_while_x_lt_y:
@@ -166,75 +161,56 @@ draw_ball:
 		mov ax, word [ball_pos] ;X0
 		add ax, cx
 		push ax
-		mov ax, word [ball_pos+2] ;Y0
-		add ax, dx
-		push ax
-		push word [ball_color]
-		call draw_pixel
-
-		mov ax, word [ball_pos] ;X0
+		mov ax, word [ball_pos] ;X1
 		sub ax, cx
 		push ax
 		mov ax, word [ball_pos+2] ;Y0
 		add ax, dx
 		push ax
 		push word [ball_color]
-		call draw_pixel
+		call draw_line
+
+		
 
 		mov ax, word [ball_pos] ;X0
 		add ax, cx
 		push ax
-		mov ax, word [ball_pos+2] ;Y0
-		sub ax, dx
-		push ax
-		push word [ball_color]
-		call draw_pixel
-
-		mov ax, word [ball_pos] ;X0
+		mov ax, word [ball_pos] ;X1
 		sub ax, cx
 		push ax
 		mov ax, word [ball_pos+2] ;Y0
 		sub ax, dx
 		push ax
 		push word [ball_color]
-		call draw_pixel
+		call draw_line
 
+		
 
 		mov ax, word [ball_pos] ;X0
 		add ax, dx
 		push ax
-		mov ax, word [ball_pos+2] ;Y0
-		add ax, cx
-		push ax
-		push word [ball_color]
-		call draw_pixel
-
-		mov ax, word [ball_pos] ;X0
+		mov ax, word [ball_pos] ;X1
 		sub ax, dx
 		push ax
 		mov ax, word [ball_pos+2] ;Y0
 		add ax, cx
 		push ax
 		push word [ball_color]
-		call draw_pixel
+		call draw_line
 
+		
 		mov ax, word [ball_pos] ;X0
 		add ax, dx
 		push ax
-		mov ax, word [ball_pos+2] ;Y0
-		sub ax, cx
-		push ax
-		push word [ball_color]
-		call draw_pixel
-
-		mov ax, word [ball_pos] ;X0
+		mov ax, word [ball_pos] ;X1
 		sub ax, dx
 		push ax
 		mov ax, word [ball_pos+2] ;Y0
 		sub ax, cx
 		push ax
 		push word [ball_color]
-		call draw_pixel
+		call draw_line
+
 
 		; finally...
 		cmp cx, dx
@@ -272,6 +248,43 @@ draw_pixel:
 	pop ax
 	pop bp
 	ret 6
+
+draw_line:	;draws horizontal line
+		;on stack:
+		;	X1
+		;	X2
+		;	Y
+		;	COLOR
+		;	ip
+	push bp
+	mov bp, sp
+	push ax
+	push bx
+	push cx
+	push dx
+	mov ax, [bp+4]	; color
+	mov bx, [bp+6]	; Y
+	mov cx, [bp+8]	; X2
+	mov dx, [bp+10]	; X1
+	cmp cx, dx
+	ja _while_draw
+	xchg cx, dx ;patch if end < begin
+	_while_draw:
+		push dx
+		push bx
+		push ax
+		call draw_pixel
+		inc dx
+		cmp dx, cx
+		jbe _while_draw
+
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	pop bp
+	ret 8
+
 init_mouse:
 	mov [cs:data_seg_ref], ds
 	mov	ax, 0x0	;init
