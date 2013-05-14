@@ -66,6 +66,12 @@ data_seg_ref dw 0
 draw_frame:
 	; assume we're in 640*480*16
 	;horizontal lines
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	push si
 	mov cx, word [frame_sz] ;x from
 	mov si, word [frame_sz+4] ;x to
 	mov ah, 0x0C
@@ -97,7 +103,12 @@ draw_frame:
 		pop si
 		cmp dx, si
 		jb _draw_vert
-
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
 	ret
 draw_ball:
 	push ax
@@ -285,6 +296,8 @@ draw_line:	;draws horizontal line
 	pop bp
 	ret 8
 
+
+
 init_mouse:
 	mov [cs:data_seg_ref], ds
 	mov	ax, 0x0	;init
@@ -329,9 +342,21 @@ mouse_event:
 	mov	ax, 2	; спрятать курсор
 	int	0x33
 
-	mov	ah,0x0C	; вывести точку
-	mov	al,0x0A
-	int	0x10
+	;mov	ah,0x0C	; вывести точку
+	;mov	al,0x0A
+	;int	0x10
+	mov bx, word [ball_color]
+	mov [ball_color], word 0x0000
+	call draw_ball
+	call draw_frame
+	mov [ball_color], bx
+	call move_circle
+	call draw_ball
+	cmp bx, 0x1
+	jne _not_pressed
+		;left button pressed
+		
+	_not_pressed:
 
 	mov	ax, 1	; показать курсор
 	int	0x33
@@ -341,6 +366,134 @@ mouse_event:
 	pop bx
 	pop ax
 	retf
+
+move_circle:
+		; CX = hrz cursor pos
+		; DX = vrt cursor pos
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	push si
+	; probe distances to different dimensions of frame
+	; will store current line in di (1,2,3,4)
+	; and best distance in si
+	mov di, 0
+	mov si, 0xFFFF
+	one:	; 1) line X1,Y1--X2,Y1 (hrz)
+			;compare Y for now
+			mov ax, [frame_sz+2]
+			mov bx, dx
+			call _abs
+			cmp ax, si
+			ja two
+			;or it's better than distance in SI
+			mov si, ax
+			mov di, 1
+	two:	; 2) line X1,Y2--X2,Y2 (hrz)
+			mov ax, [frame_sz+6]
+			mov bx, dx
+			call _abs
+			cmp ax, si
+			ja three
+			;or it's better than distance in SI
+			mov si, ax
+			mov di, 2
+	three:	; 3) line X1,Y1--X1,Y2 (vrt)
+			mov ax, [frame_sz]
+			mov bx, cx
+			call _abs
+			cmp ax, si
+			ja four
+			;or it's better than distance in SI
+			mov si, ax
+			mov di, 3
+	four:	; 4) line X2,Y1--X2,Y2 (vrt)
+			mov ax, [frame_sz+4]
+			mov bx, cx
+			call _abs
+			cmp ax, si
+			ja enough
+			;or it's better than distance in SI
+			mov si, ax
+			mov di, 4
+	enough:
+			cmp di, 1
+			je enough.one
+			cmp di, 2
+			je enough.two
+			cmp di, 3
+			je enough.three
+			cmp di, 4
+			je enough.four
+			jmp _sysexit ;should never happen
+		.one:
+			mov ax, [frame_sz+2]
+			mov [ball_pos+2], ax
+			jmp enough.set_hrz
+		.two:
+			mov ax, [frame_sz+6]
+			mov [ball_pos+2], ax
+			jmp enough.set_hrz
+		.three:
+			mov ax, [frame_sz]
+			mov [ball_pos], ax
+			jmp enough.set_vrt
+		.four:
+			mov ax, [frame_sz+4]
+			mov [ball_pos], ax
+			jmp enough.set_vrt
+		.set_hrz:
+			cmp cx, word [frame_sz]
+			jb enough.hrz_min
+			cmp cx, word [frame_sz+4]
+			ja enough.hrz_max
+			;if it's in between X1 and X2
+			mov [ball_pos], cx
+			jmp enough.end
+			.hrz_min:
+				mov ax, [frame_sz]
+				mov [ball_pos], ax
+				jmp enough.end
+			.hrz_max:
+				mov ax, [frame_sz+4]
+				mov [ball_pos], ax
+				jmp enough.end
+		.set_vrt:
+			cmp dx, word [frame_sz+2]
+			jb enough.vrt_min
+			cmp dx, word [frame_sz+6]
+			ja enough.vrt_max
+			;if it's in between Y1 and Y2
+			mov [ball_pos+2], dx
+			jmp enough.end
+			.vrt_min:
+				mov ax, [frame_sz+2]
+				mov [ball_pos+2], ax
+				jmp enough.end
+			.vrt_max:
+				mov ax, [frame_sz+6]
+				mov [ball_pos+2], ax
+				jmp enough.end
+		
+	.end:
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+_abs:
+	;in: AX, BX
+	;out: AX = abs(AX-BX)
+	cmp ax, bx
+	jae _abs.ok
+	xchg ax, bx
+.ok:	sub ax, bx
+	ret
 
 save_mode:
 	mov ax, 0x0F00
@@ -388,6 +541,16 @@ _cool_int9:
 	jmp far [_backup]
 	;iret
 
+print_newline:
+	push ax
+	push dx
+	mov ah, 0x09
+	mov dx, newline
+	int 0x21
+	pop dx
+	pop ax
+	ret
+
 
 dump_word:	; print AX
 	xchg al, ah
@@ -432,6 +595,7 @@ _sysexit:
 
 SECTION .data
 		symbols db '0123456789ABCDEF$'
+		newline db 13,10,'$'
 		key db 0
 		ExitScanCode db 0x01 ;escape pressed
 		frame_sz 	dw 0x0064, 0x0032 ;word x1, word y1		= 100* 50
@@ -439,8 +603,8 @@ SECTION .data
 		frame_color db 12
 		ball_pos dw 0x0064, 0x0032
 		ball_color db 10, 0x00
-		ball_radius db 10, 0x00
-
+		ball_radius db 3, 0x00
+		lol dw 0
 SECTION .bss
 		_backup resd 1
 		_videomode resw 1
