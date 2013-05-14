@@ -26,6 +26,7 @@ _main:
 	call init_mouse
 
 	call draw_frame
+	call draw_ball
 
 	;infinite loop
 	call _infinite
@@ -99,9 +100,178 @@ draw_frame:
 
 	ret
 draw_ball:
-	
-	ret
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	push si
 
+	mov bx, 1
+	xor cx, cx
+	mov cl, byte [ball_radius]
+	sub bx, cx ; f = 1-radius
+	mov si, 1 ; wtfX
+	mov al, -2
+	imul cl ; -2*radius
+	mov di, ax ; wtfY
+	mov cx, 0 ; X
+	xor dx, dx
+	mov dl, byte [ball_radius] ; Y
+
+	;four initial dots
+	push word [ball_pos] ; X0
+	mov ax, word [ball_pos+2] ;Y0
+	add ax, [ball_radius]
+	push ax
+	push word [ball_color]
+	call draw_pixel
+
+	push word [ball_pos] ; X0
+	mov ax, word [ball_pos+2] ;Y0
+	sub ax, [ball_radius]
+	push ax
+	push word [ball_color]
+	call draw_pixel
+
+	mov ax, word [ball_pos] ;X0
+	add ax, [ball_radius]
+	push ax
+	push word [ball_pos+2] ; Y0
+	push word [ball_color]
+	call draw_pixel
+
+
+	mov ax, word [ball_pos] ;X0
+	sub ax, [ball_radius]
+	push ax
+	push word [ball_pos+2] ; Y0
+	push word [ball_color]
+	call draw_pixel
+
+	;while (x < y)
+	_while_x_lt_y:
+		;if (f >= 0)
+		cmp bx, 0
+		jl _while_ok
+			dec dx ; y--
+			add di, 2 ; wtfY += 2
+			add bx, di ; f += wtfY
+		_while_ok:
+		inc cx ; x++
+		add si, 2 ; wtfX += 2
+		add bx, si ; f += wtfX
+
+		; 8 draws
+		mov ax, word [ball_pos] ;X0
+		add ax, cx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		add ax, dx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+		mov ax, word [ball_pos] ;X0
+		sub ax, cx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		add ax, dx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+		mov ax, word [ball_pos] ;X0
+		add ax, cx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		sub ax, dx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+		mov ax, word [ball_pos] ;X0
+		sub ax, cx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		sub ax, dx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+
+		mov ax, word [ball_pos] ;X0
+		add ax, dx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		add ax, cx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+		mov ax, word [ball_pos] ;X0
+		sub ax, dx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		add ax, cx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+		mov ax, word [ball_pos] ;X0
+		add ax, dx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		sub ax, cx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+		mov ax, word [ball_pos] ;X0
+		sub ax, dx
+		push ax
+		mov ax, word [ball_pos+2] ;Y0
+		sub ax, cx
+		push ax
+		push word [ball_color]
+		call draw_pixel
+
+		; finally...
+		cmp cx, dx
+		jl _while_x_lt_y
+
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+
+	ret
+draw_pixel:
+		;on stack:
+		;	X_POS
+		;	Y_POS
+		;	COLOR
+		;	ip
+	push bp
+	mov bp, sp
+	push ax
+	push bx
+	push cx
+	push dx
+	mov ax, [bp+4] ;actually a byte for AL
+	mov ah, 0x0C
+	mov bh, 0
+	mov dx, [bp+6]
+	mov cx, [bp+8]
+	int 0x10
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	pop bp
+	ret 6
 init_mouse:
 	mov [cs:data_seg_ref], ds
 	mov	ax, 0x0	;init
@@ -254,9 +424,9 @@ SECTION .data
 		frame_sz 	dw 0x0064, 0x0032 ;word x1, word y1		= 100* 50
 		 			dw 0x0258, 0x0190 ;word x2, word y2	= 600*400
 		frame_color db 12
-		ball_radius dw 0x0010
 		ball_pos dw 0x0064, 0x0032
-		ball_color db 10
+		ball_color db 10, 0x00
+		ball_radius db 10, 0x00
 
 SECTION .bss
 		_backup resd 1
