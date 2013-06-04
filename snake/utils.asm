@@ -2,6 +2,7 @@
 
 ;Imports=================================================
 	extern int9
+	extern int8
 	extern save_mode
 	extern set_mode
 ;Exports=================================================
@@ -11,9 +12,13 @@
 	global print_help
 	global set_up
 	global clean_up
+	global print
+	global newline
+	global space
 ;Globals=================================================
 	common screen 80*60
 	common bak_int9 4
+	common bak_int8 4
 	common bak_video 2
 
 SECTION .text
@@ -96,6 +101,20 @@ set_up:
 	mov dx, int9
 	int 0x21
 
+	;save old interrupt handler address
+	mov ax, 0x3508
+	int 0x21 ;AH:AL = 35:08 --> ES:BX = handler
+	mov word [bak_int8+2], es
+	mov word [bak_int8], bx
+	
+	;set new int08 handler
+	mov ah, 0x25
+	mov al, 0x08
+	;DS is equal do CS
+	mov dx, int8
+	int 0x21
+
+
 	;video mode
 	call save_mode
 	push word 0x1200
@@ -139,6 +158,15 @@ clean_up:
 	int 0x21 ;AH:AL = 25:09, DS:DX = new handler
 	pop ds
 
+	;restore old int8 handler
+	mov ax, 0x2508
+	mov dx, [bak_int8]
+	push ds
+	push word [bak_int8+2]
+	pop ds
+	int 0x21 ;AH:AL = 25:08, DS:DX = new handler
+	pop ds
+
 	push word [bak_video]
 	call set_mode
 
@@ -171,17 +199,37 @@ print_help:
     pop ax
 	ret
 
-print_asciz:
+print:
 ;========================================================
 ;	Prints 0-terminated string
 ;
 ;Arguments:
-;		none
+;		WORD asciz pointer
 ;
 ;Returns:
 ;		none
 ;========================================================
+	push bp
+	mov bp, sp
+	push ax
+	push bx
+	push dx
 
+	mov bx, [bp+4]
+	.repeat:
+		mov dl, [bx]
+		cmp dl, 0x0
+		je print.end
+		mov ah, 0x02
+		int 0x21
+		inc bx
+		jmp print.repeat
+	.end:
+	pop dx
+	pop bx
+	pop ax
+	pop bp
+	ret 2
 dump_word:
 ;========================================================
 ;	Prints word as HEX
@@ -242,3 +290,5 @@ SECTION .data
 				db 'See full list of rules',13,10
 				db 'in game menu.',13,10,'$'
 				db '',13,10,'$'
+		newline db 13,10,0
+		space db ' ',0

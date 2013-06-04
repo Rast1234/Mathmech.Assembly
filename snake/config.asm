@@ -6,6 +6,7 @@
 	global key_exit
 	global key_pause
 	global init_config
+	global speed
 ;Globals=================================================
 	common screen screen_size
 	common key 1
@@ -35,5 +36,6 @@ init_config:
 	ret
 
 SECTION .data
+	speed		dw 0x09  ; about 0.5 second
 	key_exit	db 0x01	; ESC scancode
-	key_pause	db 0x4D	; P
+	key_pause	db 0x19	; P

@@ -8,6 +8,9 @@
 	extern clean_up
 	extern init_config
 	extern game
+	extern print
+	extern init_objects
+	extern destroy_objects
 ;Exports=================================================
 	global nasm_main
 ;Globals=================================================
@@ -32,7 +35,9 @@ nasm_main:
 
 	call set_up
 	call init_config
+	call init_objects
 	call game
+	call destroy_objects
 	call clean_up
 	.end:
 	ret
