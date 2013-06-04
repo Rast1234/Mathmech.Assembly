@@ -6,7 +6,8 @@
 	extern arg_parse
 	extern set_up
 	extern clean_up
-	;extern game_loop
+	extern init_config
+	extern game
 ;Exports=================================================
 	global nasm_main
 ;Globals=================================================
@@ -30,7 +31,8 @@ nasm_main:
 	je nasm_main.end
 
 	call set_up
-	;call game_loop
+	call init_config
+	call game
 	call clean_up
 	.end:
 	ret
@@ -41,4 +43,3 @@ SECTION .data
 		key db 0
 		ExitScanCode db 0x01 ;escape pressed
 		nasm_str db "Hello from NASM code!", 10, "$"
-SECTION .bss

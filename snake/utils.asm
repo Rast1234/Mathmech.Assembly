@@ -86,19 +86,19 @@ set_up:
 	;save old interrupt handler address
 	mov ax, 0x3509
 	int 0x21 ;AH:AL = 35:09 --> ES:BX = handler
-	mov word [ds:bak_int9+2], es
-	mov word [ds:bak_int9], bx
+	mov word [bak_int9+2], es
+	mov word [bak_int9], bx
 	
 	;set new int9 handler
 	mov ah, 0x25
 	mov al, 0x09
 	;DS is equal do CS
-	mov dx, bak_int9
+	mov dx, int9
 	int 0x21
 
 	;video mode
 	call save_mode
-	mov ax, 0x1200
+	push word 0x1200
 	call set_mode
 	pop es
 	pop ds
@@ -121,7 +121,7 @@ clean_up:
 ;
 ;Returns:
 ;		none
-;========================================================	
+;========================================================
 	;restore video mode
 	push ax
 	push bx
@@ -129,17 +129,19 @@ clean_up:
 	push dx
 	push ds
 	push es
-	push word [bak_video]
-	call set_mode
 
 	;restore old int9 handler
 	mov ax, 0x2509
-	mov dx, [ds:bak_int9]
+	mov dx, [bak_int9]
 	push ds
-	push word [ds:bak_int9+2]
+	push word [bak_int9+2]
 	pop ds
 	int 0x21 ;AH:AL = 25:09, DS:DX = new handler
 	pop ds
+
+	push word [bak_video]
+	call set_mode
+
 	pop es
 	pop ds
 	pop dx
@@ -168,6 +170,17 @@ print_help:
     pop dx
     pop ax
 	ret
+
+print_asciz:
+;========================================================
+;	Prints 0-terminated string
+;
+;Arguments:
+;		none
+;
+;Returns:
+;		none
+;========================================================
 
 dump_word:
 ;========================================================
@@ -223,4 +236,9 @@ dump_byte:
 
 SECTION .data
 		symbols db '0123456789ABCDEF$'
-		msg_help db 'Help here',13,10,'$'
+		msg_help db 'This is angry snake game.',13,10
+				db 'It`s mostly like normal snake,',13,10
+				db 'but has several features.',13,10
+				db 'See full list of rules',13,10
+				db 'in game menu.',13,10,'$'
+				db '',13,10,'$'
