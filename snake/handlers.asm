@@ -9,9 +9,12 @@
 	extern print_help
 	extern get_object
 	extern draw_cell
+	extern draw_object
 	extern dump_object
 	extern newline
 	extern dump_pixmap
+	extern test_colors
+	extern fill_cell
 ;Exports=================================================
 	global int9
 	global int8
@@ -120,10 +123,8 @@ game:
 			call get_object
 			;call dump_object
 			;call dump_pixmap
-			push word 0x0100
-			push word [bx+8]  ; pixmap segment
-			push word [bx+6]  ; pixmap offset
-			call draw_cell
+			call draw_object
+			
 
 			jmp game.tick_end
 
