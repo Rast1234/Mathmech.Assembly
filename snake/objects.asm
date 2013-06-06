@@ -1,5 +1,5 @@
 [bits 16]
-
+%define cell_size 16
 ;Imports=================================================
 	extern collision_none
 	extern collision_tail
@@ -111,10 +111,14 @@ init_objects:
 		mov [handle], ax
 
 	;calculate required size
-		mov bx, [si]
-		mov al, 8*8  ; one frame size
-		mov ah, [bx+1]
-		mul ah  ; framesize * frames = read bytes
+		;mov bx, [si]
+		;mov ax,  cell_size*cell_size ; one frame size
+		;mov dl, [bx+1]
+		;mov dh, 0
+		;mul dx  ; framesize * frames = read bytes
+		; result in DX:AX
+		mov ax, 256
+
 		mov [read_size], ax
 
 	;allocate memory
@@ -329,7 +333,7 @@ dump_pixmap:
 	push word [bx+8]
 	pop es
 	mov bx, [bx+6]
-	mov cx, 8*8
+	mov cx, cell_size*cell_size
 	
 	.foreach:
 		mov ax, [es:bx]

@@ -1,5 +1,5 @@
 [bits 16]
-%define screen_size 80*60
+%define cell_size 16
 ;Imports=================================================
 	extern dump_byte
 	extern dump_word
@@ -21,7 +21,7 @@
 	global game
 	global msg_pause
 ;Globals=================================================
-	common screen screen_size
+	common screen 2400
 	common bak_int9 4
 	common bak_int8 4
 	common key 1
@@ -72,9 +72,9 @@ int8:
 ;========================================================
 	pushf
 	cmp word [delay], 0
-	je _lol
+	je int8.lol
 	dec word [delay]
-	_lol:
+	.lol:
 	popf
 	jmp far [bak_int8]
 	

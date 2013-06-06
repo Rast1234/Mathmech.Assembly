@@ -1,5 +1,5 @@
 [bits 16]
-%define screen_size 80*60
+%define cell_size 16
 ;Imports=================================================
 	extern dump_word
 ;Exports=================================================
@@ -8,7 +8,7 @@
 	global init_config
 	global speed
 ;Globals=================================================
-	common screen screen_size
+	common screen 2400;screen_size, MACRO DOESN'T WORK
 	common key 1
 
 SECTION .text
@@ -22,10 +22,11 @@ init_config:
 ;Returns:
 ;		(alters global values: screen, key, ...)
 ;========================================================
+	push ax
 	push bx
 	push cx
 	mov [key], byte 0x0
-	mov cx, screen_size
+	mov cx, 640/cell_size*480/cell_size
 	mov bx, screen
 	.fill:
 		mov [bx], word 0
@@ -33,6 +34,7 @@ init_config:
 		loop init_config.fill
 	pop cx
 	pop bx
+	pop ax
 	ret
 
 SECTION .data

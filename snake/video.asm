@@ -1,5 +1,5 @@
 [bits 16]
-
+%define cell_size 16
 ;Imports=================================================
 	extern dump_byte
 	extern dump_word
@@ -13,7 +13,7 @@
 	global test_colors
 	global fill_cell
 ;Globals=================================================
-	common screen 4800
+	common screen 2400
 	common bak_video 2
 
 SECTION .text
@@ -87,7 +87,7 @@ draw_object:
 
 draw_cell:
 ;========================================================
-;	Draw 8*8 square cell with texture at coordinates
+;	Draw square cell with texture at coordinates
 ;
 ;Arguments:
 ;		BYTE x, BYTE y
@@ -119,12 +119,12 @@ draw_cell:
 	mov bx, [bp+8]
 
 	mov al, bh ;x
-	mov ah, 8
+	mov ah, cell_size
 	mul ah
 	mov di, ax
 
 	mov al, bl ;y
-	mov ah, 8
+	mov ah, cell_size
 	mul ah
 	mov si, ax
 
@@ -150,14 +150,14 @@ draw_cell:
 			inc bx
 			inc di ; x+1
 			inc dx
-			cmp dx, 8
+			cmp dx, cell_size
 			jb draw_cell.hrz
 		pop di
 		;push newline
 		;call print
 		inc si ; y+1
 		inc cx
-		cmp cx, 8
+		cmp cx, cell_size
 		jb draw_cell.vrt
 
 	
@@ -208,7 +208,7 @@ draw_pixel:
 
 fill_cell:
 ;========================================================
-;	Fill 8*8 square cell with single color at coordinates
+;	Fill square cell with single color at coordinates
 ;
 ;Arguments:
 ;		BYTE x, BYTE y
@@ -235,12 +235,12 @@ fill_cell:
 	mov bx, [bp+6]
 
 	mov al, bh ;x
-	mov ah, 8
+	mov ah, cell_size
 	mul ah
 	mov di, ax
 
 	mov al, bl ;y
-	mov ah, 8
+	mov ah, cell_size
 	mul ah
 	mov si, ax
 
@@ -263,14 +263,14 @@ fill_cell:
 			;call dump_word
 			inc di ; x+1
 			inc dx
-			cmp dx, 8
+			cmp dx, cell_size
 			jb fill_cell.hrz
 		pop di
 		;push newline
 		;call print
 		inc si ; y+1
 		inc cx
-		cmp cx, 8
+		cmp cx, cell_size
 		jb .vrt
 
 	

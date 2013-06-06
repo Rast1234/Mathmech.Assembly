@@ -16,7 +16,7 @@
 	global newline
 	global space
 ;Globals=================================================
-	common screen 80*60
+	common screen 2400
 	common bak_int9 4
 	common bak_int8 4
 	common bak_video 2
