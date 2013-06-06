@@ -3,6 +3,14 @@
 %define act_exit 3
 %define act_pause 1
 %define act_none 0
+%define mutation_mask_cross_transparent	0b00000001
+%define mutation_mask_godmode			0b00000010
+%define mutation_mask_noclip			0b00000100
+%define dir_stop 0
+%define dir_up 1
+%define dir_down 2
+%define dir_left 3
+%define dir_right 4
 ;Imports=================================================
 	extern dump_byte
 	extern dump_word
@@ -20,6 +28,7 @@
 	extern fill_cell
 	extern repaint
 	extern place_object
+	extern dump_dec
 
 	extern key_exit
 	extern key_pause
@@ -30,6 +39,10 @@
 	extern key_fast
 	extern key_slow
 	extern key_cross
+
+	extern mutation
+	extern speed
+	extern init_field
 ;Exports=================================================
 	global int9
 	global int8
@@ -43,6 +56,7 @@
 	common key 1
 	common delay 2
 	common paused 1
+	common snake 1
 
 SECTION .text
 int9:
@@ -75,11 +89,28 @@ int9:
 	out 20h, al ; to the 8259A PIC.
 	;jmp far [bak_int9]
 
+	
 	mov al, [key]
+	
 	cmp al, [key_pause]
 	je int9.set_pause
 	cmp al, [key_exit]
 	je int9.set_exit
+
+	cmp al, [key_cross]
+	je int9.toggle_cross
+	cmp al, [key_fast]
+	je int9.faster
+	cmp al, [key_slow]
+	je int9.slower
+	cmp al, [key_up]
+	je int9.up
+	cmp al, [key_down]
+	je int9.down
+	cmp al, [key_left]
+	je int9.left
+	cmp al, [key_right]
+	je int9.right
 	jmp int9.set_none
 
 	.set_pause:
@@ -94,6 +125,51 @@ int9:
 
 	.set_none:
 		mov [action], byte act_none
+		jmp int9.end
+
+	.toggle_cross:
+		;inc byte [mutation]
+		mov al, [mutation]
+		and al, byte mutation_mask_cross_transparent
+		not al
+		or ah, byte mutation_mask_cross_transparent
+		and al, ah
+		mov [mutation], al
+		jmp int9.end
+	.faster:
+		cmp byte [speed], 0x00
+		je int9.end
+		dec byte [speed]
+		jmp int9.end
+	.slower:
+		cmp byte [speed], 0xFF
+		je int9.end
+		inc byte [speed]
+		jmp int9.end
+
+	.up:
+		cmp [direction], byte dir_down
+		je int9.stop
+		mov [direction], byte dir_up
+		jmp int9.end
+	.down:
+		cmp [direction], byte dir_up
+		je int9.stop
+		mov [direction], byte dir_down
+		jmp int9.end
+	.left:
+		cmp [direction], byte dir_right
+		je int9.stop
+		mov [direction], byte dir_left
+		jmp int9.end
+	.right:
+		cmp [direction], byte dir_left
+		je int9.stop
+		mov [direction], byte dir_right
+		jmp int9.end
+
+	.stop:
+		mov [direction], byte dir_stop
 		jmp int9.end
 	.end:
 	pop ax
@@ -204,6 +280,25 @@ gui:
 	; set cursor pos
 	mov ah, 0x02
 	mov bh, 0
+	mov dx, 0x0100 ; y:x
+	int 0x10
+
+	mov al, [mutation]
+	call dump_byte
+
+	; set cursor pos
+	mov ah, 0x02
+	mov bh, 0
+	mov dx, 0x0103 ; y:x
+	int 0x10
+
+	mov ah, 0
+	mov al, [speed]
+	call dump_dec
+
+	; set cursor pos
+	mov ah, 0x02
+	mov bh, 0
 	mov dx, 0x0400 ; y:x
 	int 0x10
 	cmp [paused], byte 0
@@ -252,9 +347,11 @@ game:
 	push ds
 	push es
 
-	;fill game field with 'null' texture
-	mov si, 0  ; repaint ALL
+	call init_field
+
+	mov si, 0  ; repaint ALL for the first time
 	call repaint
+
 
 	.tick:
 		; Things to do before each game tick
@@ -267,6 +364,8 @@ game:
 		je game.paused
 
 		;do regular ordinary snake meal time
+		;call food_handler
+		;call snake_handler
 
 		jmp game.tick_end
 
@@ -287,6 +386,7 @@ game:
 
 			jmp game.tick_end
 
+		
 		.tick_end:  ; Things to do after each game tick
 			mov si, 1  ; optimal repaint flag
 			call repaint  ; refresh game field
@@ -313,3 +413,10 @@ SECTION .data
 			; 0 - none
 			; 1 - set pause
 			; 3 - exit
+	direction	db 0
+		;directions:
+		;	0 - stop
+		;	1 - up
+		;	2 - down
+		;	3 - left
+		;	4 - right

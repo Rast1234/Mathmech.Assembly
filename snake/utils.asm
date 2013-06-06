@@ -15,6 +15,7 @@
 	global print
 	global newline
 	global space
+	global dump_dec
 ;Globals=================================================
 	common bak_int9 4
 	common bak_int8 4
@@ -279,6 +280,87 @@ dump_byte:
 	pop cx
 	pop bx
 	ret
+
+dump_dec:
+;========================================================
+;	Prints byte as DEC
+;
+;Arguments:
+;		AX:	BYTE to print
+;
+;Returns:
+;		none
+;========================================================
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+
+	push ax
+	push bx
+	push cx
+	push dx
+	mov ah, 0x09
+	mov al, ' '
+	mov bh, 0
+	mov bl, 0x0F
+	mov cx, 3
+	int 0x10
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	mov bx, 0x00ff
+	sub bx, ax
+	mov ax, bx
+	mov di, dx
+	push 0 
+	mov bx,10 
+	.one: 
+		xor dx,dx 
+		div bx 
+		add dx,'0' 
+		push dx 
+		or al,al 
+		jz dump_dec.two
+		jmp dump_dec.one
+	.two: 
+		pop ax 
+		or al,al 
+		jz dump_dec.end
+
+		;print!
+		push ax
+		push bx
+		push cx
+		push dx
+		mov ah, 0x09
+		mov bh, 0
+		mov bl, 0x0F
+		mov cx, 1
+		int 0x10
+		;move cursor back
+		mov ah, 0x02
+		mov bh, 0
+		mov dx, di
+		inc dl
+		mov di, dx
+		int 0x10
+		pop dx
+		pop cx
+		pop bx
+		pop ax
+
+		jmp dump_dec.two
+	.end: 
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
 
 
 SECTION .data

@@ -10,6 +10,9 @@
 	extern space
 	extern dump_byte
 	extern dump_word
+	extern collision_portal
+	extern collision_stop
+	extern collision_kill
 ;Exports=================================================
 	global get_object
 	global get_object_id
@@ -19,6 +22,11 @@
 	global dump_pixmap
 	global place_object
 	global empty
+	global head
+	global tail
+	global wall_portal
+	global wall_wall
+	global wall_kill
 ;Globals=================================================
 	common screen 2000
 
@@ -427,12 +435,28 @@ objects: ;start descriptor table
 			db 'head',0
 
 	tail	db 0, 1
-			dw 0, collision_tail
+			dw -10, collision_tail
 			dd 0
 			db 'tail',0
 
+	wall_portal		db 0, 1,
+					dw 1, collision_portal
+					dd 0
+					db 'portal',0
+
+	wall_wall		db 0, 1,
+					dw 0, collision_stop
+					dd 0
+					db 'wall',0
+
+	wall_kill		db 0, 1,
+					dw -100, collision_kill
+					dd 0
+					db 'kill',0
+
+
 ;Object lookup table
-lookup	dw empty, head, tail
+lookup	dw empty, head, tail, wall_portal, wall_wall, wall_kill
 		dw 0  ; end of table
 
 SECTION .bss

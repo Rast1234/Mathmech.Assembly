@@ -1,7 +1,20 @@
 [bits 16]
 %define cell_size 16
+%define mutation_mask_cross_transparent	0b00000001
+%define mutation_mask_godmode			0b00000010
+%define mutation_mask_noclip			0b00000100
 ;Imports=================================================
 	extern dump_word
+
+	extern empty
+	extern head
+	extern tail
+	extern wall_portal
+	extern wall_wall
+	extern wall_kill
+
+	extern get_object_id
+	extern place_object
 ;Exports=================================================
 	global key_exit
 	global key_pause
@@ -15,10 +28,13 @@
 
 	global init_config
 	global speed
+	global mutation
+	global init_field
 ;Globals=================================================
 	common screen 2000  ; 2400 ;screen_size, MACRO DOESN'T WORK
 	common key 1
 	common paused 1
+	common snake 1
 
 SECTION .text
 init_config:
@@ -47,8 +63,79 @@ init_config:
 	pop ax
 	ret
 
+init_field:
+;========================================================
+;	Initialize default field (walls, food, snake)
+;
+;Arguments:
+;		none
+;
+;Returns:
+;		(alters global values: screen)
+;========================================================
+	push ax
+	push bx
+	push cx
+
+	;fill edges with portals
+	mov bx, wall_portal
+	call get_object_id
+	mov ax, 0x0000
+	.portal_vrt:
+		mov ah, 0
+		call place_object
+		mov ah, 39
+		call place_object
+
+		inc al
+		cmp al, 25
+		jb init_field.portal_vrt
+	mov ax, 0x0000
+	.portal_hrz:
+		mov al, 0
+		call place_object
+		mov al, 24
+		call place_object
+
+		inc ah
+		cmp ah, 40
+		jb init_field.portal_hrz
+	
+	;make some walls
+	mov bx, wall_wall
+	call get_object_id
+	mov ax, 0x0A0A
+	.wall_vrt:
+		call place_object
+		inc al
+		cmp al, 20
+		jb init_field.wall_vrt
+
+	mov ax, 0x0A0A
+
+	;and death walls
+	mov bx, wall_kill
+	call get_object_id
+	.kill_hrz:
+		mov al, 10
+		call place_object
+		mov al, 20
+		call place_object
+
+		inc ah
+		cmp ah, 30
+		jb init_field.kill_hrz
+
+
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+
 SECTION .data
 	speed		dw 0x09  ; about 0.5 second
+	mutation	db 0x0  ; game changer
 keys:
 	key_exit	db 0x01	 ; ESC scancode
 	key_pause	db 0x19	 ; P

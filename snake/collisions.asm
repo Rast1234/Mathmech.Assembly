@@ -1,10 +1,13 @@
 [bits 16]
 
 ;Imports=================================================
-	;none
+	extern mutation
 ;Exports=================================================
 	global collision_none
 	global collision_tail
+	global collision_portal
+	global collision_stop
+	global collision_kill
 ;Globals=================================================
 	;none
 
@@ -22,5 +25,28 @@ collision_tail:
 ;
 ;========================================================
 	ret
+
+collision_portal:
+;========================================================
+;	Collision with magic portal
+;
+;========================================================
+	ret
+
+collision_stop:
+;========================================================
+;	Collision with simple wall
+;
+;========================================================
+	ret
+
+collision_kill:
+;========================================================
+;	Collision with death wall
+;
+;========================================================
+	ret
+
+
 
 SECTION .data
