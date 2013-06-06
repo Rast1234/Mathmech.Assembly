@@ -414,7 +414,7 @@ SECTION .data
 ;	DWORD	pixmap pointer (far ptr to pixel array, = 0)
 ;	ASCIZ	name (also a bitmap filename)
 
-objects ;start descriptor table
+objects: ;start descriptor table
 
 	empty	db 0, 1
 			dw 0, collision_none

@@ -1,5 +1,8 @@
 [bits 16]
 %define cell_size 16
+%define act_exit 3
+%define act_pause 1
+%define act_none 0
 ;Imports=================================================
 	extern dump_byte
 	extern dump_word
@@ -17,6 +20,16 @@
 	extern fill_cell
 	extern repaint
 	extern place_object
+
+	extern key_exit
+	extern key_pause
+	extern key_up
+	extern key_down
+	extern key_left
+	extern key_right
+	extern key_fast
+	extern key_slow
+	extern key_cross
 ;Exports=================================================
 	global int9
 	global int8
@@ -29,6 +42,7 @@
 	common bak_int8 4
 	common key 1
 	common delay 2
+	common paused 1
 
 SECTION .text
 int9:
@@ -60,6 +74,28 @@ int9:
 	mov al, 20h ;Send EOI (end of interrupt)
 	out 20h, al ; to the 8259A PIC.
 	;jmp far [bak_int9]
+
+	mov al, [key]
+	cmp al, [key_pause]
+	je int9.set_pause
+	cmp al, [key_exit]
+	je int9.set_exit
+	jmp int9.set_none
+
+	.set_pause:
+		mov [action], byte act_pause
+		mov [delay], word 0
+		jmp int9.end
+
+	.set_exit:
+		mov [action], byte act_exit
+		mov [delay], word 0
+		jmp int9.end
+
+	.set_none:
+		mov [action], byte act_none
+		jmp int9.end
+	.end:
 	pop ax
 	iret
 
@@ -158,16 +194,36 @@ gui:
 	; set cursor pos
 	mov ah, 0x02
 	mov bh, 0
-	mov dx, 0
+	mov dx, 0x0000 ; y:x
 	int 0x10
 
 	; write something
-	mov ah, 0x09
-	mov al, 'S'
-	mov bh, 0 ;page - text mode only?
-	mov bl, 0b00001111
-	mov cx, 10
+	mov al, [action]
+	call dump_byte
+
+	; set cursor pos
+	mov ah, 0x02
+	mov bh, 0
+	mov dx, 0x0400 ; y:x
 	int 0x10
+	cmp [paused], byte 0
+	je gui.no_pause
+	jne gui.is_pause
+	.is_pause:
+
+		push msg_pause
+		call print
+		jmp gui.end_pause
+
+	.no_pause:
+		mov ah, 0x0A
+		mov al, ' '
+		mov bh, 0x00
+		mov cx, [len_msg_pause]
+		int 0x10
+		jmp gui.end_pause
+
+	.end_pause:
 
 	.end:
 	pop es
@@ -201,17 +257,16 @@ game:
 	call repaint
 
 	.tick:
-		mov bl, [key]
 		; Things to do before each game tick
 		mov [delay], word 10
 
-		; mask to ignore press/release difference
-		and bl, 0b01111111  
 		; now decide what to do
-		cmp bl, [key_exit]
+		cmp [action], byte act_exit
 		je game.escape
-		cmp bl, [key_pause]
+		cmp [action], byte act_pause
 		je game.paused
+
+		;do regular ordinary snake meal time
 
 		jmp game.tick_end
 
@@ -219,27 +274,16 @@ game:
 			jmp game.end
 
 		.paused:  ; Pause/resume game
+			cmp [paused], byte 1
+			je game.unpause
+			jne game.dopause
 
-			;mov [screen+0], word 1
-			;mov [screen+2], word 0
-			;mov [screen+80], word 2
-			;mov [screen+82], word 2
-			
-			mov ax, 0x0000
-			mov bl, 0
-			call place_object
-
-			mov ax, 0x0001
-			mov bl, 1
-			call place_object
-
-			mov ax, 0x0100
-			mov bl, 2
-			call place_object
-
-			mov ax, 0x0101
-			mov bl, 1
-			call place_object
+			.dopause:
+				mov [paused], byte 1
+				jmp game.tick_end
+			.unpause:
+				mov [paused], byte 0
+				jmp game.tick_end
 
 			jmp game.tick_end
 
@@ -262,4 +306,10 @@ game:
 	ret
 
 SECTION .data
-	msg_pause db 'Game paused',0
+	msg_pause	db 'Game paused',0
+	len_msg_pause dw $ - msg_pause - 1
+	action		db 0
+		;special actions:
+			; 0 - none
+			; 1 - set pause
+			; 3 - exit
