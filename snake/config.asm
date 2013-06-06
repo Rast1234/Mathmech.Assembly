@@ -34,7 +34,7 @@
 	common screen 2000  ; 2400 ;screen_size, MACRO DOESN'T WORK
 	common key 1
 	common paused 1
-	common snake 1
+	common snake 2
 
 SECTION .text
 init_config:
@@ -126,6 +126,13 @@ init_field:
 		cmp ah, 30
 		jb init_field.kill_hrz
 
+	; place snake's head
+	mov bx, head
+	call get_object_id
+	mov ah, 20
+	mov al, 15
+	call place_object
+	mov [snake], ax
 
 	pop cx
 	pop bx

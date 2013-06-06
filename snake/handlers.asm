@@ -1,7 +1,6 @@
 [bits 16]
 %define cell_size 16
 %define act_exit 3
-%define act_pause 1
 %define act_none 0
 %define mutation_mask_cross_transparent	0b00000001
 %define mutation_mask_godmode			0b00000010
@@ -56,7 +55,7 @@
 	common key 1
 	common delay 2
 	common paused 1
-	common snake 1
+	common snake 2
 
 SECTION .text
 int9:
@@ -91,11 +90,13 @@ int9:
 
 	
 	mov al, [key]
-	
-	cmp al, [key_pause]
-	je int9.set_pause
+	and al, 0x7F
 	cmp al, [key_exit]
 	je int9.set_exit
+
+	mov al, [key]
+	cmp al, [key_pause]
+	je int9.set_pause
 
 	cmp al, [key_cross]
 	je int9.toggle_cross
@@ -114,7 +115,9 @@ int9:
 	jmp int9.set_none
 
 	.set_pause:
-		mov [action], byte act_pause
+		mov al, byte [paused]
+		not al
+		mov [paused], al
 		mov [delay], word 0
 		jmp int9.end
 
@@ -132,19 +135,20 @@ int9:
 		mov al, [mutation]
 		and al, byte mutation_mask_cross_transparent
 		not al
+		mov ah, [mutation]
 		or ah, byte mutation_mask_cross_transparent
 		and al, ah
 		mov [mutation], al
 		jmp int9.end
 	.faster:
-		cmp byte [speed], 0x00
+		cmp word [speed], 0x0000
 		je int9.end
-		dec byte [speed]
+		dec word [speed]
 		jmp int9.end
 	.slower:
-		cmp byte [speed], 0xFF
+		cmp word [speed], 0xFFFF
 		je int9.end
-		inc byte [speed]
+		inc word [speed]
 		jmp int9.end
 
 	.up:
@@ -293,7 +297,18 @@ gui:
 	int 0x10
 
 	mov ah, 0
-	mov al, [speed]
+	mov ax, [speed]
+	mov bx, 0xffff
+	sub bx, ax
+	mov ax, bx
+	call dump_dec
+
+	; set cursor pos
+	mov ah, 0x02
+	mov bh, 0
+	mov dx, 0x0203 ; y:x
+	int 0x10	
+	mov ax, [ticks]
 	call dump_dec
 
 	; set cursor pos
@@ -311,9 +326,10 @@ gui:
 		jmp gui.end_pause
 
 	.no_pause:
-		mov ah, 0x0A
+		mov ah, 0x09
 		mov al, ' '
 		mov bh, 0x00
+		mov bl, 0x00
 		mov cx, [len_msg_pause]
 		int 0x10
 		jmp gui.end_pause
@@ -355,41 +371,32 @@ game:
 
 	.tick:
 		; Things to do before each game tick
-		mov [delay], word 10
+		mov ax, word [speed]
+		mov [delay], ax
 
 		; now decide what to do
 		cmp [action], byte act_exit
 		je game.escape
-		cmp [action], byte act_pause
-		je game.paused
-
+		
 		;do regular ordinary snake meal time
+		cmp [paused], byte 0
+		jne game.tick_end_paused
 		;call food_handler
-		;call snake_handler
+		call snake_handler
 
 		jmp game.tick_end
 
 		.escape:  ; Leave game NOW
 			jmp game.end
 
-		.paused:  ; Pause/resume game
-			cmp [paused], byte 1
-			je game.unpause
-			jne game.dopause
-
-			.dopause:
-				mov [paused], byte 1
-				jmp game.tick_end
-			.unpause:
-				mov [paused], byte 0
-				jmp game.tick_end
-
-			jmp game.tick_end
-
-		
 		.tick_end:  ; Things to do after each game tick
-			mov si, 1  ; optimal repaint flag
-			call repaint  ; refresh game field
+			cmp [paused], byte 1
+			je game.tick_end_paused
+			; unpaused:
+				inc word [ticks]
+				mov si, 1  ; optimal repaint flag
+				call repaint  ; refresh game field
+			.tick_end_paused:
 			call gui  ; refresh gui
 			.sleep:  ; sleep
 				cmp [delay], word 0
@@ -405,13 +412,57 @@ game:
 	pop ax
 	ret
 
+snake_handler:
+;========================================================
+;	Snake handler (replace head and chain)
+;
+;Arguments:
+;		none
+;
+;Returns:
+;		none
+;========================================================
+	push ax
+	push bx
+	push cx
+	push dx
+	push ds
+	push es
+
+	mov ax, [snake]
+
+	;cmp [direction], byte dir_stop
+	;je snake_handler.end
+	;cmp [direction], byte dir_up
+	;je snake_handler.move_up
+	;cmp [direction], byte dir_down
+	;je snake_handler.move_down
+	;cmp [direction], byte dir_left
+	;je snake_handler.move_left
+	;cmp [direction], byte dir_right
+	;je snake_handler.move_right
+	;jmp snake_handler.end
+
+	;.move_up:
+
+
+	
+	.end:
+	pop es
+	pop ds
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+
 SECTION .data
 	msg_pause	db 'Game paused',0
 	len_msg_pause dw $ - msg_pause - 1
 	action		db 0
 		;special actions:
 			; 0 - none
-			; 1 - set pause
 			; 3 - exit
 	direction	db 0
 		;directions:
@@ -420,3 +471,4 @@ SECTION .data
 		;	2 - down
 		;	3 - left
 		;	4 - right
+	ticks dw 0

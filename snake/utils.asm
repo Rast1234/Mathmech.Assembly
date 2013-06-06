@@ -283,7 +283,7 @@ dump_byte:
 
 dump_dec:
 ;========================================================
-;	Prints byte as DEC
+;	Prints word as DEC
 ;
 ;Arguments:
 ;		AX:	BYTE to print
@@ -305,15 +305,13 @@ dump_dec:
 	mov al, ' '
 	mov bh, 0
 	mov bl, 0x0F
-	mov cx, 3
+	mov cx, 5
 	int 0x10
 	pop dx
 	pop cx
 	pop bx
 	pop ax
-	mov bx, 0x00ff
-	sub bx, ax
-	mov ax, bx
+	
 	mov di, dx
 	push 0 
 	mov bx,10 
