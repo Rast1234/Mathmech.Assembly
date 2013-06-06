@@ -18,6 +18,7 @@
 	global dump_object
 	global dump_pixmap
 	global place_object
+	global empty
 ;Globals=================================================
 	common screen 2000
 
@@ -420,12 +421,12 @@ objects ;start descriptor table
 			dd 0
 			db 'NULL',0
 
-	head	db 5, 1
+	head	db 0, 1
 			dw 0, collision_none
 			dd 0
 			db 'head',0
 
-	tail	db 6, 1
+	tail	db 0, 1
 			dw 0, collision_tail
 			dd 0
 			db 'tail',0

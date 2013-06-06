@@ -351,10 +351,10 @@ test_colors:
 repaint:
 ;========================================================
 ;	Draw whole game field
-;	don't redraw fields with id = 0
+;	don't redraw fields with id = 0 if al = 1
 ;
 ;Arguments:
-;		none
+;		SI = optimization flag (dont skip 'nulls' if = 0)
 ;
 ;Returns:
 ;		none
@@ -380,12 +380,17 @@ repaint:
 			call handle_cell  ; process this cell
 
 			mov bl, [di]  ; id
-			cmp bl, 0
-			je repaint.cell_end
-			call get_object
-			mov ah, dl
-			mov al, cl
-			call draw_object
+			cmp si, 0 ;don't skip 'null's
+			jne repaint.optimal
+			je repaint.not_optimal
+			.optimal:
+				cmp bl, 0
+				je repaint.cell_end
+			.not_optimal:
+				call get_object
+				mov ah, dl
+				mov al, cl
+				call draw_object
 			.cell_end:
 			add di, 2
 			inc dx

@@ -195,7 +195,11 @@ game:
 	push dx
 	push ds
 	push es
-	
+
+	;fill game field with 'null' texture
+	mov si, 0  ; repaint ALL
+	call repaint
+
 	.tick:
 		mov bl, [key]
 		; Things to do before each game tick
@@ -240,6 +244,7 @@ game:
 			jmp game.tick_end
 
 		.tick_end:  ; Things to do after each game tick
+			mov si, 1  ; optimal repaint flag
 			call repaint  ; refresh game field
 			call gui  ; refresh gui
 			.sleep:  ; sleep
