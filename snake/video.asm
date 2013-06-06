@@ -1,10 +1,14 @@
 [bits 16]
 %define cell_size 16
+%define screen_size_x 40
+%define screen_size_y 25
 ;Imports=================================================
 	extern dump_byte
 	extern dump_word
 	extern print
 	extern newline
+	extern handle_cell
+	extern get_object
 ;Exports=================================================
 	global save_mode
 	global set_mode
@@ -12,8 +16,9 @@
 	global draw_object
 	global test_colors
 	global fill_cell
+	global repaint
 ;Globals=================================================
-	common screen 2400
+	common screen 2000  ; 2400
 	common bak_video 2
 
 SECTION .text
@@ -190,15 +195,35 @@ draw_pixel:
 	push bx
 	push cx
 	push dx
+	push es
 
+	;mov ax, 0xA000  ; video memory
+	;mov es, ax
 
-	mov ax, [bp+4] ;actually a byte for AL
+	; slow draw routine using int 0x10
+	mov ax, [bp+4] ;actually a byte for AL, color
 	mov ah, 0x0C
-	mov bh, 0
-	mov dx, [bp+6]
-	mov cx, [bp+8]
+	mov bh, 0  ; page
+	mov dx, [bp+6]  ; y
+	mov cx, [bp+8]  ; x
+
+	add dx, cell_size*5
 	int 0x10
 
+	; fast draw routine using VGA bitplanes
+	; bitplanes:
+	;	x x x x 3 2 1 0
+	;	x x x x I R G B
+	;			I for Intensity
+	;mov dx, 0x03C4  ; some VGA port
+	;mov ax, 0x0f00
+	;out dx, ax
+	;mov di, 0
+	;mov cx, 1
+	;mov al, 0x01
+	;mov [es:di], al
+
+	pop es
 	pop dx
 	pop cx
 	pop bx
@@ -314,6 +339,64 @@ test_colors:
 		cmp bx, 100
 		jb test_colors.foreach
 
+	pop es
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+repaint:
+;========================================================
+;	Draw whole game field
+;	don't redraw fields with id = 0
+;
+;Arguments:
+;		none
+;
+;Returns:
+;		none
+;========================================================
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	push si
+	push es
+	
+	mov cx, 0 ;y
+	mov dx, 0 ;x
+	mov di, screen ;cell ptr
+
+	.vrt:
+		mov dx, 0
+		.hrz:
+			mov bx, di  ; cell
+			mov ah, dl
+			mov al, cl
+			call handle_cell  ; process this cell
+
+			mov bl, [di]  ; id
+			cmp bl, 0
+			je repaint.cell_end
+			call get_object
+			mov ah, dl
+			mov al, cl
+			call draw_object
+			.cell_end:
+			add di, 2
+			inc dx
+			cmp dx, 40
+			jb repaint.hrz
+		inc cx
+		cmp cx, 25
+		jb repaint.vrt
+
+	
+	.end:
 	pop es
 	pop si
 	pop di

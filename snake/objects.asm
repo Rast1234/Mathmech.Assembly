@@ -1,5 +1,7 @@
 [bits 16]
 %define cell_size 16
+%define screen_size_x 40
+%define screen_size_y 25
 ;Imports=================================================
 	extern collision_none
 	extern collision_tail
@@ -15,8 +17,9 @@
 	global destroy_objects
 	global dump_object
 	global dump_pixmap
+	global place_object
 ;Globals=================================================
-	;none
+	common screen 2000
 
 SECTION .text
 get_object:
@@ -111,6 +114,7 @@ init_objects:
 		mov [handle], ax
 
 	;calculate required size
+	; TODO: really calculate, dont read just one frame!
 		;mov bx, [si]
 		;mov ax,  cell_size*cell_size ; one frame size
 		;mov dl, [bx+1]
@@ -351,6 +355,54 @@ dump_pixmap:
 	pop ax
 	ret
 
+place_object:
+;========================================================
+;	Places object as id:ttl at game field
+;Arguments:
+;		AX: x : y
+;		BL: object type
+;
+;Returns:
+;		none
+;========================================================
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	push si
+
+	mov di, screen
+	
+	mov dx, ax
+	mov al, dl ;y
+	mov ah, screen_size_x
+	shl ah, 1
+	mul ah
+
+	mov dl, dh
+	mov dh, 0
+	shl dl, 1
+	add ax, dx
+
+	; y * 40 + x
+	add di, ax  ; move to cell
+
+	mov cl, bl  ; obj type
+	call get_object
+	mov bl, [bx]
+	mov ch, bl  ; store ttl
+	
+	mov [di], cx
+
+	.end:
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
 
 SECTION .data
 ;Named objects, in format:
@@ -368,12 +420,12 @@ objects ;start descriptor table
 			dd 0
 			db 'NULL',0
 
-	head	db 0, 1
+	head	db 5, 1
 			dw 0, collision_none
 			dd 0
 			db 'head',0
 
-	tail	db 0, 1
+	tail	db 6, 1
 			dw 0, collision_tail
 			dd 0
 			db 'tail',0

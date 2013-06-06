@@ -8,7 +8,7 @@
 	global init_config
 	global speed
 ;Globals=================================================
-	common screen 2400;screen_size, MACRO DOESN'T WORK
+	common screen 2000  ; 2400 ;screen_size, MACRO DOESN'T WORK
 	common key 1
 
 SECTION .text
@@ -26,7 +26,7 @@ init_config:
 	push bx
 	push cx
 	mov [key], byte 0x0
-	mov cx, 640/cell_size*480/cell_size
+	mov cx, 640/cell_size*(480/cell_size-5)
 	mov bx, screen
 	.fill:
 		mov [bx], word 0

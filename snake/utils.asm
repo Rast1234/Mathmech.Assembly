@@ -16,7 +16,6 @@
 	global newline
 	global space
 ;Globals=================================================
-	common screen 2400
 	common bak_int9 4
 	common bak_int8 4
 	common bak_video 2
@@ -34,39 +33,39 @@ arg_parse:
 ;Returns:
 ;		AX:	exit - 1 if want to exit program
 ;========================================================
-		push bx
-		push cx
-		push dx
-		xor ax, ax
-		xor ch, ch
-		mov cl, byte [es:0x80]
-		mov bx, 0x80
-		cmp cl, 0x0
-		je arg_parse.end
-		.reading:
-			inc bx
-			mov dl, byte [es:bx]
-			; compares, jumps here
-			cmp dl, 'h'
-			je arg_parse.call_help
-			; ...
+	push bx
+	push cx
+	push dx
+	xor ax, ax
+	xor ch, ch
+	mov cl, byte [es:0x80]
+	mov bx, 0x80
+	cmp cl, 0x0
+	je arg_parse.end
+	.reading:
+		inc bx
+		mov dl, byte [es:bx]
+		; compares, jumps here
+		cmp dl, 'h'
+		je arg_parse.call_help
+		; ...
+		jmp arg_parse.next
+
+		;useful stuff:
+		.call_help:
+			call print_help
+			mov ax, word 0x1
 			jmp arg_parse.next
+		; ...
 
-			;useful stuff:
-			.call_help:
-				call print_help
-				mov ax, word 0x1
-				jmp arg_parse.next
-			; ...
+		.next:
+		loop arg_parse.reading
 
-			.next:
-			loop arg_parse.reading
-
-		.end:
-		pop dx
-		pop cx
-		pop bx
-		ret
+	.end:
+	pop dx
+	pop cx
+	pop bx
+	ret
 
 set_up:
 ;========================================================
@@ -283,12 +282,12 @@ dump_byte:
 
 
 SECTION .data
-		symbols db '0123456789ABCDEF$'
-		msg_help db 'This is angry snake game.',13,10
-				db 'It`s mostly like normal snake,',13,10
-				db 'but has several features.',13,10
-				db 'See full list of rules',13,10
-				db 'in game menu.',13,10,'$'
-				db '',13,10,'$'
-		newline db 13,10,0
-		space db ' ',0
+	symbols db '0123456789ABCDEF$'
+	msg_help db 'This is angry snake game.',13,10
+			db 'It`s mostly like normal snake,',13,10
+			db 'but has several features.',13,10
+			db 'See full list of rules',13,10
+			db 'in game menu.',13,10,'$'
+			db '',13,10,'$'
+	newline db 13,10,0
+	space db ' ',0

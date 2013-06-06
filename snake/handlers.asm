@@ -15,13 +15,16 @@
 	extern dump_pixmap
 	extern test_colors
 	extern fill_cell
+	extern repaint
+	extern place_object
 ;Exports=================================================
 	global int9
 	global int8
 	global game
 	global msg_pause
+	global handle_cell
 ;Globals=================================================
-	common screen 2400
+	common screen 2000  ; 2400
 	common bak_int9 4
 	common bak_int8 4
 	common key 1
@@ -82,6 +85,99 @@ int8:
 	;out     0x20,al     ; контроллеру прерываний 8259
 	;iret
 
+handle_cell:
+;========================================================
+;	Cell handler
+;	make cell decay to 'null'
+;
+;Arguments:
+;		AX: x : y
+;		BX: cell ptr
+;
+;Returns:
+;		none
+;========================================================
+	push ax
+	push bx
+	push cx
+	push dx
+	push ds
+	push es
+
+	mov dx, [bx]
+	; DL = obj_id
+	; DH = timer
+	cmp dh, 0  ;if cell has 0 ttl, don't touch it
+	je handle_cell.end
+
+	dec dh  ;else dec its timer by 1
+	cmp dh, 0 ;is it time to die?
+	je handle_cell.decay
+	jne handle_cell.end
+
+	.decay:
+		;replace with 'null' if timer reached 0
+		mov dx, 0x0000  ; 'null' 
+
+		;paint this because it won't get touched by repaint function
+		push bx
+		mov bl, 0
+		call get_object
+		call draw_object
+		pop bx
+
+
+	.end:
+	mov [bx], dx  ; finally, store object in field
+	pop es
+	pop ds
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+gui:
+;========================================================
+;	GUI handler
+;	draw useful info in the top of game field
+;
+;Arguments:
+;		none
+;
+;Returns:
+;		none
+;========================================================
+	push ax
+	push bx
+	push cx
+	push dx
+	push ds
+	push es
+
+	; set cursor pos
+	mov ah, 0x02
+	mov bh, 0
+	mov dx, 0
+	int 0x10
+
+	; write something
+	mov ah, 0x09
+	mov al, 'S'
+	mov bh, 0 ;page - text mode only?
+	mov bl, 0b00001111
+	mov cx, 10
+	int 0x10
+
+	.end:
+	pop es
+	pop ds
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
 
 game:
 ;========================================================
@@ -119,18 +215,34 @@ game:
 			jmp game.end
 
 		.paused:  ; Pause/resume game
-			mov bl, 1
-			call get_object
-			;call dump_object
-			;call dump_pixmap
-			call draw_object
+
+			;mov [screen+0], word 1
+			;mov [screen+2], word 0
+			;mov [screen+80], word 2
+			;mov [screen+82], word 2
 			
+			mov ax, 0x0000
+			mov bl, 0
+			call place_object
+
+			mov ax, 0x0001
+			mov bl, 1
+			call place_object
+
+			mov ax, 0x0100
+			mov bl, 2
+			call place_object
+
+			mov ax, 0x0101
+			mov bl, 1
+			call place_object
 
 			jmp game.tick_end
 
 		.tick_end:  ; Things to do after each game tick
-			; sleep
-			.sleep:
+			call repaint  ; refresh game field
+			call gui  ; refresh gui
+			.sleep:  ; sleep
 				cmp [delay], word 0
 				ja game.sleep
 			jmp game.tick
