@@ -286,7 +286,8 @@ dump_dec:
 ;	Prints word as DEC
 ;
 ;Arguments:
-;		AX:	BYTE to print
+;		AX:	WORD to print
+;		DX: cursor pos (y : x)
 ;
 ;Returns:
 ;		none

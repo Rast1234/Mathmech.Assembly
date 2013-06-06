@@ -60,6 +60,7 @@
 	common paused 1
 	common snake 2
 	common length 2
+	common score 2
 
 SECTION .text
 int9:
@@ -275,44 +276,62 @@ gui:
 	push ds
 	push es
 
-	; set cursor pos
-	mov ah, 0x02
-	mov bh, 0
+	mov bx, 0  ; bh - video page in int10
+	mov ah, 0x02  ; set cursor pos
+
 	mov dx, 0x0000 ; y:x
 	int 0x10
-
-	; write something
-	mov al, [action]
-	call dump_byte
-
-	; set cursor pos
-	mov ah, 0x02
-	mov bh, 0
+	push msg_score
+	call print
+	
 	mov dx, 0x0100 ; y:x
 	int 0x10
+	push msg_length
+	call print
 
-	mov al, [mutation]
-	call dump_byte
-
-	; set cursor pos
-	mov ah, 0x02
-	mov bh, 0
-	mov dx, 0x0103 ; y:x
+	mov dx, 0x0200 ; y:x
 	int 0x10
+	push msg_age
+	call print
 
+	mov dx, 0x300 ; y:x
+	int 0x10
+	push msg_speed
+	call print
+
+	;erase digits
+	;mov dh, 0
+	;mov dl, [len_first_col]	
+	;mov cx, 5
+	;.erase:
+
+
+	mov dh, 0
+	mov dl, [len_first_col]
+	int 0x10
+	mov ax, [score]
+	call dump_dec
+
+	mov ah, 0x02
+	mov dh, 1
+	int 0x10
+	mov ax, [length]
+	call dump_dec
+
+	mov ah, 0x02
+	mov dh, 2
+	int 0x10
+	mov ax, [ticks]
+	call dump_dec
+
+	mov ah, 0x02
+	mov dh, 3
+	int 0x10
 	mov ah, 0
 	mov ax, [speed]
 	mov bx, 0xffff
 	sub bx, ax
 	mov ax, bx
-	call dump_dec
-
-	; set cursor pos
-	mov ah, 0x02
-	mov bh, 0
-	mov dx, 0x0203 ; y:x
-	int 0x10	
-	mov ax, [ticks]
 	call dump_dec
 
 	; set cursor pos
@@ -334,7 +353,7 @@ gui:
 		mov al, ' '
 		mov bh, 0x00
 		mov bl, 0x00
-		mov cx, [len_msg_pause]
+		mov cx, [len_first_col]
 		int 0x10
 		jmp gui.end_pause
 
@@ -465,6 +484,7 @@ snake_handler:
 	.move_it:
 		mov [snake], ax
 		call place_object
+		;call recalc_snake
 	
 	.end:
 	pop es
@@ -478,7 +498,17 @@ snake_handler:
 
 SECTION .data
 	msg_pause	db 'Game paused',0
-	len_msg_pause dw $ - msg_pause - 1
+	;len_msg_pause dw $ - msg_pause - 1
+	msg_length db 'Size:',0
+	;len_msg_length dw $ - msg_length - 1
+	msg_score db 'Score:',0
+	;len_msg_score dw $ - msg_score - 1
+	msg_age db 'Age:',0
+	;len_msg_age dw $ - msg_age - 1
+	msg_speed db 'Speed:',0
+	;len_msg_speed dw $ - msg_speed - 1
+	len_first_col db 15  ; first GUI column
+
 	action		db 0
 		;special actions:
 			; 0 - none
