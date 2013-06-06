@@ -35,6 +35,7 @@
 	common key 1
 	common paused 1
 	common snake 2
+	common length 2
 
 SECTION .text
 init_config:
@@ -52,6 +53,7 @@ init_config:
 	push cx
 	mov [key], byte 0x0
 	mov [paused], byte 0x0
+	mov [length], word 1
 	mov cx, 640/cell_size*(480/cell_size-5)
 	mov bx, screen
 	.fill:

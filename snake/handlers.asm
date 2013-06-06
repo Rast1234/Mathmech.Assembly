@@ -18,6 +18,7 @@
 	extern print
 	extern print_help
 	extern get_object
+	extern get_object_id
 	extern draw_cell
 	extern draw_object
 	extern dump_object
@@ -39,6 +40,8 @@
 	extern key_slow
 	extern key_cross
 
+	extern head
+
 	extern mutation
 	extern speed
 	extern init_field
@@ -56,6 +59,7 @@
 	common delay 2
 	common paused 1
 	common snake 2
+	common length 2
 
 SECTION .text
 int9:
@@ -430,22 +434,37 @@ snake_handler:
 	push es
 
 	mov ax, [snake]
+	mov bx, head
+	call get_object_id
 
-	;cmp [direction], byte dir_stop
-	;je snake_handler.end
-	;cmp [direction], byte dir_up
-	;je snake_handler.move_up
-	;cmp [direction], byte dir_down
-	;je snake_handler.move_down
-	;cmp [direction], byte dir_left
-	;je snake_handler.move_left
-	;cmp [direction], byte dir_right
-	;je snake_handler.move_right
-	;jmp snake_handler.end
+	cmp [direction], byte dir_stop
+	je snake_handler.end
+	cmp [direction], byte dir_up
+	je snake_handler.move_up
+	cmp [direction], byte dir_down
+	je snake_handler.move_down
+	cmp [direction], byte dir_left
+	je snake_handler.move_left
+	cmp [direction], byte dir_right
+	je snake_handler.move_right
+	jmp snake_handler.end
 
-	;.move_up:
+	.move_up:
+		dec al
+		jmp snake_handler.move_it
+	.move_down:
+		inc al
+		jmp snake_handler.move_it
+	.move_left:
+		dec ah
+		jmp snake_handler.move_it
+	.move_right:
+		inc ah
+		jmp snake_handler.move_it
 
-
+	.move_it:
+		mov [snake], ax
+		call place_object
 	
 	.end:
 	pop es
