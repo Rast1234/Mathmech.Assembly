@@ -13,6 +13,7 @@
 	extern collision_portal
 	extern collision_stop
 	extern collision_kill
+	extern collision_inc
 ;Exports=================================================
 	global get_object
 	global get_object_id
@@ -21,12 +22,14 @@
 	global dump_object
 	global dump_pixmap
 	global place_object
+	global take_object
 	global empty
 	global head
 	global tail
 	global wall_portal
 	global wall_wall
 	global wall_kill
+	global food_inc
 ;Globals=================================================
 	common screen 2000
 
@@ -413,6 +416,47 @@ place_object:
 	pop ax
 	ret
 
+take_object:
+;========================================================
+;	Takes object as id:ttl from game field
+;Arguments:
+;		AX: x : y
+;
+;Returns:
+;		BX: id : ttl
+;========================================================
+	push ax
+	push cx
+	push dx
+	push di
+	push si
+
+	mov di, screen
+	
+	mov dx, ax
+	mov al, dl ;y
+	mov ah, screen_size_x
+	shl ah, 1
+	mul ah
+
+	mov dl, dh
+	mov dh, 0
+	shl dl, 1
+	add ax, dx
+
+	; y * 40 + x
+	add di, ax  ; move to cell
+
+	mov bx, [di]
+
+	.end:
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop ax
+	ret
+
 SECTION .data
 ;Named objects, in format:
 ;	BYTE	ttl (living time in game ticks, 0 is infinity)
@@ -454,9 +498,15 @@ objects: ;start descriptor table
 					dd 0
 					db 'kill',0
 
+	food_inc		db 20, 1,
+					dw 10, collision_inc
+					dd 0
+					db 'foodinc',0	
+
 
 ;Object lookup table
 lookup	dw empty, head, tail, wall_portal, wall_wall, wall_kill
+		dw food_inc
 		dw 0  ; end of table
 
 SECTION .bss

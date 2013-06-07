@@ -12,7 +12,8 @@
 	extern wall_portal
 	extern wall_wall
 	extern wall_kill
-
+	extern food_inc
+	extern snake
 	extern get_object_id
 	extern place_object
 ;Exports=================================================
@@ -34,9 +35,9 @@
 	common screen 2000  ; 2400 ;screen_size, MACRO DOESN'T WORK
 	common key 1
 	common paused 1
-	common snake 2
 	common length 2
 	common score 2
+	common delta 1
 
 SECTION .text
 init_config:
@@ -52,16 +53,27 @@ init_config:
 	push ax
 	push bx
 	push cx
+
 	mov [key], byte 0x0
 	mov [paused], byte 0x0
-	mov [length], word 1
+	mov [length], word 3
 	mov [score], word 0
+	mov [delta], byte 0
+
 	mov cx, 640/cell_size*(480/cell_size-5)
 	mov bx, screen
 	.fill:
 		mov [bx], word 0
 		add bx, 2
 		loop init_config.fill
+
+	mov cx, 1000-2
+	mov bx, snake
+	.snack:
+		mov [bx], word 0x0000
+		add bx, 2
+		loop init_config.snack
+
 	pop cx
 	pop bx
 	pop ax
@@ -130,6 +142,20 @@ init_field:
 		cmp ah, 30
 		jb init_field.kill_hrz
 
+	; place food
+	mov bx, food_inc
+	call get_object_id
+	mov ah, 23
+	mov al, 15
+	call place_object
+
+	; place food
+	mov bx, food_inc
+	call get_object_id
+	mov ah, 32
+	mov al, 10
+	call place_object
+
 	; place snake's head
 	mov bx, head
 	call get_object_id
@@ -138,6 +164,21 @@ init_field:
 	call place_object
 	mov [snake], ax
 
+	;snake's tail
+	mov bx, tail
+	call get_object_id
+	mov ah, 20
+	mov al, 16
+	call place_object
+	mov [snake+2], ax
+
+	mov bx, tail
+	call get_object_id
+	mov ah, 19
+	mov al, 16
+	call place_object
+	mov [snake+4], ax
+
 	pop cx
 	pop bx
 	pop ax
@@ -145,7 +186,7 @@ init_field:
 
 
 SECTION .data
-	speed		dw 0x09  ; about 0.5 second
+	speed		dw 0x00  ; fastest
 	mutation	db 0x0  ; game changer
 keys:
 	key_exit	db 0x01	 ; ESC scancode

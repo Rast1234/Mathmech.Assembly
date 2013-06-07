@@ -29,6 +29,7 @@
 	extern repaint
 	extern place_object
 	extern dump_dec
+	extern take_object
 
 	extern key_exit
 	extern key_pause
@@ -41,6 +42,8 @@
 	extern key_cross
 
 	extern head
+	extern tail
+	extern empty
 
 	extern mutation
 	extern speed
@@ -51,6 +54,8 @@
 	global game
 	global msg_pause
 	global handle_cell
+	global direction
+	global snake
 ;Globals=================================================
 	common screen 2000  ; 2400
 	common bak_int9 4
@@ -58,9 +63,9 @@
 	common key 1
 	common delay 2
 	common paused 1
-	common snake 2
 	common length 2
 	common score 2
+	common delta 1
 
 SECTION .text
 int9:
@@ -146,11 +151,13 @@ int9:
 		mov [mutation], al
 		jmp int9.end
 	.faster:
+		mov byte [delta], 1
 		cmp word [speed], 0x0000
 		je int9.end
 		dec word [speed]
 		jmp int9.end
 	.slower:
+		mov byte [delta], 2
 		cmp word [speed], 0xFFFF
 		je int9.end
 		inc word [speed]
@@ -437,7 +444,7 @@ game:
 
 snake_handler:
 ;========================================================
-;	Snake handler (replace head and chain)
+;	Snake handler (try move, collide obstacles)
 ;
 ;Arguments:
 ;		none
@@ -455,6 +462,7 @@ snake_handler:
 	mov ax, [snake]
 	mov bx, head
 	call get_object_id
+	mov cx, bx  ;save snake handler
 
 	cmp [direction], byte dir_stop
 	je snake_handler.end
@@ -482,9 +490,17 @@ snake_handler:
 		jmp snake_handler.move_it
 
 	.move_it:
-		mov [snake], ax
-		call place_object
-		;call recalc_snake
+		; AX now points to new head position
+		; but [snake] is untouched!
+		; check what's on a desired position:
+		call take_object
+		call get_object
+		call [bx+4]  ; collision handler of this object
+		;now in AX - final head position for this turn!
+		call recalc_snake
+		
+		;mov bx, cx  ; restore snake handler
+		;call place_object
 	
 	.end:
 	pop es
@@ -495,6 +511,215 @@ snake_handler:
 	pop ax
 	ret
 
+recalc_snake:
+;========================================================
+;	Snake mover (replace head and chain)
+;
+;Arguments:
+;		AX - new head position (x : y)
+;
+;Returns:
+;		none
+;========================================================
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	push si
+	cmp ax, [snake]
+	je recalc_snake.end  ; nothing to move
+
+
+	mov di, snake
+	mov cx, [length]
+
+
+	cmp cx, 1
+	je .single
+	jne .long
+
+	.single:
+		cmp [delta], byte 1
+		je recalc_snake.single_increased
+		cmp [delta], byte 2
+		je recalc_snake.single_decreased
+		; or it just moved
+		.single_moved:
+			;just replace-repaint
+			xchg ax, [snake]
+			;now un-paint ax
+				mov bx, empty
+				call get_object_id
+				call place_object
+				mov bx, empty
+				call draw_object
+			;paint new head
+				mov ax, [snake]
+				mov bx, head
+				call get_object_id
+				call place_object
+				mov bx, head
+				call draw_object
+
+			jmp recalc_snake.end
+		.single_increased:
+			;add one
+			xchg ax, [snake]
+			xchg ax, [snake+2]
+			;now paint new head
+				mov ax, [snake]
+				mov bx, head
+				call get_object_id
+				call place_object
+				mov bx, head
+				call draw_object
+			; paint tail
+				mov ax, [snake+2]
+				mov bx, tail
+				call get_object_id
+				call place_object
+				mov bx, tail
+				call draw_object
+			inc word [length]
+			jmp recalc_snake.end
+		.single_decreased:
+			;wat?
+			jmp recalc_snake.single_moved
+		jmp recalc_snake.end
+	.long:
+		cmp [delta], byte 1
+		je recalc_snake.long_increased
+		cmp [delta], byte 2
+		je recalc_snake.long_decreased
+		.long_moved:
+		; or it just moved
+			;repaint
+			mov di, snake
+			mov cx, [length]
+			.long_bubble:
+				xchg ax, [di]
+				add di, 2
+				loop recalc_snake.long_bubble
+
+			; un-paint tail (last) in AX
+				;if it overlaps with another part - don't do anything.
+				mov di, snake
+				mov cx, [length]
+				.check_overlap:
+					cmp ax, [di]
+					je recalc_snake.dont_remove
+					add di, 2
+					loop recalc_snake.check_overlap
+				mov bx, empty
+				call get_object_id
+				call place_object
+				mov bx, empty
+				call draw_object
+			
+			.dont_remove:
+			;now paint new head
+				mov ax, [snake]
+				mov bx, head
+				call get_object_id
+				call place_object
+				mov bx, head
+				call draw_object
+			; paint tail (next after head)
+				mov ax, [snake+2]
+				mov bx, tail
+				call get_object_id
+				call place_object
+				mov bx, tail
+				call draw_object
+			
+			jmp recalc_snake.end
+		.long_increased:
+			;add one
+			mov di, snake
+			mov cx, [length]
+			.long_bubble2:
+				xchg ax, [di]
+				add di, 2
+				loop recalc_snake.long_bubble2
+			xchg ax, [di]
+			;now paint new head
+				mov ax, [snake]
+				mov bx, head
+				call get_object_id
+				call place_object
+				mov bx, head
+				call draw_object
+			; paint tail (next after head)
+				mov ax, [snake+2]
+				mov bx, tail
+				call get_object_id
+				call place_object
+				mov bx, tail
+				call draw_object
+			inc word [length]
+			jmp recalc_snake.end
+		.long_decreased:
+			;remove one
+			;un-paint last one
+			;if it overlaps with another part - don't do anything.
+			push ax
+			mov di, [length]
+			dec di
+			shl di, 1
+			mov ax, [di+snake]
+				mov bx, empty
+				call get_object_id
+				call place_object
+				mov bx, empty
+				call draw_object
+			pop ax
+			dec word [length]
+			cmp [length], word 1
+			je recalc_snake.single_moved
+			jmp recalc_snake.long_moved
+	.end:	
+	mov byte [delta], 0
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+print_snake:
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	push si
+
+	mov bx, 0  ; bh - video page in int10
+	mov ah, 0x02  ; set cursor pos
+	mov dx, 0x0023 ; y:x
+	int 0x10
+	mov cx, [length]
+	mov bx, snake
+	.go:
+		mov ax, [bx]
+		call dump_word
+		mov ah, 2
+		inc dh
+		mov dl, 0x23
+		int 0x10
+		add bx, 2
+		loop print_snake.go
+
+
+	pop si
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
 
 SECTION .data
 	msg_pause	db 'Game paused',0
@@ -521,3 +746,4 @@ SECTION .data
 		;	3 - left
 		;	4 - right
 	ticks dw 0
+	snake times 1000 dw 0
