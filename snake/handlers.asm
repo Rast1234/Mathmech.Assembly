@@ -56,6 +56,11 @@
 	global handle_cell
 	global direction
 	global snake
+	global game_over
+	global goodfood
+	global badfood
+	global speaker_on
+	global speaker_off
 ;Globals=================================================
 	common screen 2000  ; 2400
 	common bak_int9 4
@@ -312,7 +317,7 @@ gui:
 	;mov cx, 5
 	;.erase:
 
-
+	mov ah, 0x02
 	mov dh, 0
 	mov dl, [len_first_col]
 	int 0x10
@@ -420,6 +425,8 @@ game:
 			jmp game.end
 
 		.tick_end:  ; Things to do after each game tick
+			cmp [game_over], byte 1
+			je game.end
 			cmp [paused], byte 1
 			je game.tick_end_paused
 			; unpaused:
@@ -431,9 +438,58 @@ game:
 			.sleep:  ; sleep
 				cmp [delay], word 0
 				ja game.sleep
+			call speaker_off
 			jmp game.tick
 	.end:
+	call speaker_off
+	;show some game over info
+
+	;call gui
+	mov bx, 0  ; bh - video page in int10
+	mov ah, 0x02  ; set cursor pos
+
+	mov dx, 0x0330 ; y:x
+	int 0x10
+	push msg_game_over
+	call print
+
+	mov dx, 0x0430 ; y:x
+	int 0x10
+	push msg_press_key
+	call print
+
+	mov dx, 0x0020 ; y:x
+	int 0x10
+	push msg_goodfood
+	call print
+
+	mov dx, 0x0120 ; y:x
+	int 0x10
+	push msg_badfood
+	call print
+
+	mov ah, 0x02
+	mov dh, 0
+	mov dl, 50
+	int 0x10
+	mov ax, [goodfood]
+	call dump_dec
+
+	mov ah, 0x02
+	mov dh, 1
+	mov dl, 50
+	int 0x10
+	mov ax, [badfood]
+	call dump_dec
+
 	
+	
+	
+	mov [key], byte 0
+	.exitloop:
+		cmp [key], byte 0
+		je game.exitloop
+
 	pop es
 	pop ds
 	pop dx
@@ -721,19 +777,48 @@ print_snake:
 	pop ax
 	ret
 
+speaker_on:
+		; AX - tone
+	;speaker magic
+	push ax
+	push ax
+	mov al, 0b10110110 ;magic number to initialize Timer2
+	out 0x43, al
+	pop ax
+	out 0x42, al  ; write LSB
+	mov al, ah
+	out 0x42, al  ; write MSB
+	in al, 0x61
+	or al, 0b000011 ;turn speaker ON
+	out 0x61, al
+	pop ax
+	ret
+
+speaker_off:
+	push ax
+	in al, 0x61
+	and al, 0b11111100 ;turn speaker OFF
+	out 0x61, al
+	pop ax
+	ret
+
+
+
 SECTION .data
 	msg_pause	db 'Game paused',0
-	;len_msg_pause dw $ - msg_pause - 1
 	msg_length db 'Size:',0
-	;len_msg_length dw $ - msg_length - 1
 	msg_score db 'Score:',0
-	;len_msg_score dw $ - msg_score - 1
 	msg_age db 'Age:',0
-	;len_msg_age dw $ - msg_age - 1
 	msg_speed db 'Speed:',0
-	;len_msg_speed dw $ - msg_speed - 1
+	msg_game_over db 'Game over!',0
+	msg_press_key db 'Press any key to exit.',0
+	msg_goodfood db 'Good food eaten:',0
+	msg_badfood  db 'Bad  food eaten:',0
 	len_first_col db 15  ; first GUI column
 
+	game_over		db 0
+	goodfood		dw 0
+	badfood			dw 0
 	action		db 0
 		;special actions:
 			; 0 - none

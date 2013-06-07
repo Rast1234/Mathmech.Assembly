@@ -13,9 +13,12 @@
 	extern wall_wall
 	extern wall_kill
 	extern food_inc
+	extern food_dec
+	extern food_bad
 	extern snake
 	extern get_object_id
 	extern place_object
+	extern game_over
 ;Exports=================================================
 	global key_exit
 	global key_pause
@@ -56,7 +59,7 @@ init_config:
 
 	mov [key], byte 0x0
 	mov [paused], byte 0x0
-	mov [length], word 3
+	mov [length], word 1
 	mov [score], word 0
 	mov [delta], byte 0
 
@@ -156,6 +159,20 @@ init_field:
 	mov al, 10
 	call place_object
 
+	; place food
+	mov bx, food_dec
+	call get_object_id
+	mov ah, 33
+	mov al, 10
+	call place_object
+
+	; place food
+	mov bx, food_bad
+	call get_object_id
+	mov ah, 37
+	mov al, 15
+	call place_object
+
 	; place snake's head
 	mov bx, head
 	call get_object_id
@@ -163,21 +180,6 @@ init_field:
 	mov al, 15
 	call place_object
 	mov [snake], ax
-
-	;snake's tail
-	mov bx, tail
-	call get_object_id
-	mov ah, 20
-	mov al, 16
-	call place_object
-	mov [snake+2], ax
-
-	mov bx, tail
-	call get_object_id
-	mov ah, 19
-	mov al, 16
-	call place_object
-	mov [snake+4], ax
 
 	pop cx
 	pop bx

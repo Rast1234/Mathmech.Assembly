@@ -14,6 +14,8 @@
 	extern collision_stop
 	extern collision_kill
 	extern collision_inc
+	extern collision_dec
+	extern collision_bounce
 ;Exports=================================================
 	global get_object
 	global get_object_id
@@ -30,6 +32,8 @@
 	global wall_wall
 	global wall_kill
 	global food_inc
+	global food_dec
+	global food_bad
 ;Globals=================================================
 	common screen 2000
 
@@ -423,7 +427,7 @@ take_object:
 ;		AX: x : y
 ;
 ;Returns:
-;		BX: id : ttl
+;		BX: ttl : id
 ;========================================================
 	push ax
 	push cx
@@ -489,7 +493,7 @@ objects: ;start descriptor table
 					db 'portal',0
 
 	wall_wall		db 0, 1,
-					dw 0, collision_stop
+					dw 0, collision_bounce
 					dd 0
 					db 'wall',0
 
@@ -503,10 +507,20 @@ objects: ;start descriptor table
 					dd 0
 					db 'foodinc',0	
 
+	food_dec		db 20, 1,
+					dw 10, collision_dec
+					dd 0
+					db 'fooddec',0
+
+	food_bad		db 20, 1,
+					dw 00, collision_kill
+					dd 0
+					db 'foodbad',0	
+
 
 ;Object lookup table
 lookup	dw empty, head, tail, wall_portal, wall_wall, wall_kill
-		dw food_inc
+		dw food_inc, food_dec, food_bad
 		dw 0  ; end of table
 
 SECTION .bss

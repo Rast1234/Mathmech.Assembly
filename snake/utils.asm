@@ -50,11 +50,18 @@ arg_parse:
 		cmp dl, 'h'
 		je arg_parse.call_help
 		; ...
+		cmp dl, 'a'
+		je arg_parse.call_about
 		jmp arg_parse.next
 
 		;useful stuff:
 		.call_help:
 			call print_help
+			mov ax, word 0x1
+			jmp arg_parse.next
+		.call_about:
+			push msg_about
+			call print
 			mov ax, word 0x1
 			jmp arg_parse.next
 		; ...
@@ -367,8 +374,26 @@ SECTION .data
 	msg_help db 'This is angry snake game.',13,10
 			db 'It`s mostly like normal snake,',13,10
 			db 'but has several features.',13,10
-			db 'See full list of rules',13,10
-			db 'in game menu.',13,10,'$'
+			db 'Full list of rules:',13,10
+			db 'Snake can eat and grow, or shrink.',13,10
+			db 'Obstacles are passive, some are dangerous.',13,10
+			db 'You can leave game by pressing ESC.',13,10
+			db 'You can toggle pause game by pressing P.',13,10
+			db 'Snake is controlled by arrows.',13,10
+			db '+ and - change game speed.',13,10
+			db 'Backspace toggles overlapping.',13,10
+			db '$'
 			db '',13,10,'$'
 	newline db 13,10,0
+	msg_about db 13,10,13,10,'Author:',13,10
+				db '						Rostislav Kirillov aka  Rast',13,10
+				db '									2013',13,10,13,10
+				db '		    Proudly presents new old-school release',13,10
+				db 13,10,13,10
+				db '				Angry Snake game'
+				db 13,10,13,10,13,10,13,10
+				db 'Greetings to c58, actics and Razor1911',13,10
+				db 'And for all who supported me during this',13,10
+				db '							hard work!'
+				db 0
 	space db ' ',0
